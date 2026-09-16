@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pitch Transpose</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+
+      body {
+        width: 320px;
+        min-height: 180px;
+        padding: 16px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 13px;
+        color: #e0e0e0;
+        background: #1a1a2e;
+      }
+
+      .tab-title {
+        font-size: 11px;
+        color: #888;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-bottom: 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #2a2a4a;
+      }
+
+      .control-group { margin-bottom: 20px; }
+
+      .label {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 8px;
+        font-size: 12px;
+        color: #aaa;
+      }
+
+      .value {
+        font-variant-numeric: tabular-nums;
+        font-size: 22px;
+        font-weight: 600;
+        color: #fff;
+        letter-spacing: 0.5px;
+      }
+
+      .value small {
+        font-size: 13px;
+        font-weight: 400;
+        color: #888;
+        margin-left: 2px;
+      }
+
+      input[type="range"] {
+        width: 100%;
+        height: 6px;
+        -webkit-appearance: none;
+        appearance: none;
+        background: #2a2a4a;
+        border-radius: 3px;
+        outline: none;
+        cursor: pointer;
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #6c63ff;
+        border: 2px solid #1a1a2e;
+        box-shadow: 0 0 4px rgba(108, 99, 255, 0.4);
+        transition: transform 0.1s;
+      }
+
+      input[type="range"]::-webkit-slider-thumb:hover {
+        transform: scale(1.2);
+      }
+
+      .bypass-btn {
+        width: 100%;
+        padding: 10px;
+        font-size: 13px;
+        font-weight: 500;
+        border: 1px solid #2a2a4a;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
+        background: #1b4332;
+        color: #40c057;
+        border-color: #2d6a4f;
+      }
+
+      .bypass-btn:hover {
+        background: #2d6a4f;
+      }
+
+      .bypass-btn.bypassed {
+        background: #3d1f1f;
+        color: #ff6b6b;
+        border-color: #6b2020;
+      }
+
+      .bypass-btn.bypassed:hover {
+        background: #6b2020;
+      }
+
+      body.disabled .control-group,
+      body.disabled .bypass-btn {
+        opacity: 0.35;
+        pointer-events: none;
+      }
+
+      body.disabled .value {
+        color: #555;
+      }
+
+      .connect-btn {
+        width: 100%;
+        padding: 10px;
+        font-size: 13px;
+        font-weight: 500;
+        border: 1px solid #2a2a4a;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s, border-color 0.15s;
+        background: #1b2a4a;
+        color: #6c9cff;
+        border-color: #3a5a8a;
+        margin-bottom: 12px;
+      }
+
+      .connect-btn:hover {
+        background: #2a3f6a;
+      }
+
+      .connect-btn.connected {
+        background: #1b4332;
+        color: #40c057;
+        border-color: #2d6a4f;
+      }
+
+      .connect-btn.connected:hover {
+        background: #2d6a4f;
+      }
+
+      .error-msg {
+        font-size: 11px;
+        color: #ff6b6b;
+        margin-bottom: 12px;
+        padding: 6px 8px;
+        background: #3d1f1f;
+        border-radius: 4px;
+        border: 1px solid #6b2020;
+        display: none;
+      }
+
+      .error-msg.visible {
+        display: block;
+      }
+
+      .snap-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
+        font-size: 12px;
+        color: #aaa;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .snap-label input[type="checkbox"] {
+        accent-color: #6c63ff;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="tab-title" id="tabTitle">No active tab</div>
+
+    <div class="error-msg" id="errorMsg"></div>
+
+    <button class="connect-btn" id="connectBtn">Connect</button>
+
+    <div class="control-group">
+      <div class="label">Pitch</div>
+      <div class="value" id="pitchValue">+0.00<small>st</small></div>
+      <input type="range" id="pitchSlider" min="-12" max="12" step="0.01" value="0" />
+      <label class="snap-label">
+        <input type="checkbox" id="snapCheckbox" checked />
+        <span>半音調整</span>
+      </label>
+    </div>
+
+    <button class="bypass-btn" id="bypassBtn">Active</button>
+
+    <label class="snap-label" style="margin-top:12px;">
+      <input type="checkbox" id="formantCheckbox" />
+      <span>共振峰保護</span>
+    </label>
+
+    <label class="snap-label" style="margin-top:8px;">
+      <input type="checkbox" id="accompanimentCheckbox" />
+      <span>純伴奏模式</span>
+    </label>
+
+    <script type="module" src="./popup.ts"></script>
+  </body>
+</html>

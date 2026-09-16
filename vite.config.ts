@@ -1,0 +1,86 @@
+import { defineConfig, type Plugin } from "vite";
+import { resolve } from "path";
+import {
+  existsSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+  copyFileSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+} from "fs";
+
+// Flatten HTML output from dist/src/*/  →  dist/
+// Copy manifest.json from project root, patch paths, clean up src/.
+function flatHtmlOutput(): Plugin {
+  return {
+    name: "flat-html-output",
+    closeBundle() {
+      const pairs: [string, string][] = [
+        ["dist/src/popup/popup.html", "dist/popup.html"],
+        ["dist/src/offscreen/offscreen.html", "dist/offscreen.html"],
+      ];
+      for (const [from, to] of pairs) {
+        if (existsSync(from)) renameSync(from, to);
+      }
+
+      // Fix relative asset paths: dist/src/*/file.html → dist/file.html
+      // Vite generates paths from source location (../../assets/), need to strip leading ../
+      for (const [, to] of pairs) {
+        if (!existsSync(to)) continue;
+        let html = readFileSync(to, "utf8");
+        html = html.replace(/"\.\.\/\.\.\//g, '"');
+        html = html.replace(/'\.\.\/\.\.\//g, "'");
+        writeFileSync(to, html);
+      }
+
+      const srcDir = "dist/src";
+      if (existsSync(srcDir)) rmSync(srcDir, { recursive: true });
+
+      copyFileSync("manifest.json", "dist/manifest.json");
+      const m = JSON.parse(readFileSync("dist/manifest.json", "utf8"));
+      if (m.action?.default_popup) m.action.default_popup = "popup.html";
+      if (m.offscreen?.page) m.offscreen.page = "offscreen.html";
+      writeFileSync("dist/manifest.json", JSON.stringify(m, null, 2) + "\n");
+
+      // Copy icons/ to dist/icons/
+      if (existsSync("icons")) {
+        const iconsDir = "dist/icons";
+        if (!existsSync(iconsDir)) mkdirSync(iconsDir, { recursive: true });
+        for (const f of readdirSync("icons")) {
+          if (statSync(`icons/${f}`).isFile()) copyFileSync(`icons/${f}`, `${iconsDir}/${f}`);
+        }
+      }
+
+      // Copy processors/ to dist/processors/ (plain JS worklet scripts)
+      if (existsSync("src/processors")) {
+        const procDir = "dist/processors";
+        if (!existsSync(procDir)) mkdirSync(procDir, { recursive: true });
+        for (const f of readdirSync("src/processors")) {
+          if (statSync(`src/processors/${f}`).isFile()) copyFileSync(`src/processors/${f}`, `${procDir}/${f}`);
+        }
+      }
+    },
+  };
+}
+
+export default defineConfig({
+  base: "",
+  test: {
+    include: ["src/tests/**/*.test.ts"],
+  },
+  build: {
+    target: "esnext",
+    outDir: "dist",
+    emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        popup: resolve(__dirname, "src/popup/popup.html"),
+        offscreen: resolve(__dirname, "src/offscreen/offscreen.html"),
+      },
+    },
+  },
+  plugins: [flatHtmlOutput()],
+});

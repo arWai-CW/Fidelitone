@@ -1,0 +1,21 @@
+{
+  "name": "pitch-transpose-extension",
+  "version": "0.1.0",
+  "description": "Chrome MV3 extension for real-time audio pitch transposition",
+  "type": "module",
+  "scripts": {
+    "build": "vite build && cp -r icons dist/ && mkdir -p dist/processors && cp src/processors/*.js dist/processors/",
+    "dev": "vite build --watch && cp manifest.json dist/ && cp -r icons dist/",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "signalsmith-stretch": "^1.3.2"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.3.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0"
+  }
+}
