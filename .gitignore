@@ -1,3 +1,6 @@
 node_modules/
 dist/
 .DS_Store
+.omo
+.playwright-mcp
+.zcode
