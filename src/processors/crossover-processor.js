@@ -1,32 +1,31 @@
 /**
- * Linkwitz-Riley 4th-Order Crossover AudioWorkletProcessor
+ * Linkwitz-Riley 4th-order crossover AudioWorkletProcessor.
  *
- * Splits audio into low band (0–crossoverFreq) and high band (crossoverFreq–Nyquist).
- * LR-4 = two cascaded 2nd-order Butterworth sections. Low + high sums to flat.
+ * The low band is two cascaded Butterworth low-pass sections. The high band is
+ * two cascaded Butterworth high-pass sections, so both bands have matching
+ * phase behaviour around the crossover frequency and sum cleanly on recombine.
  */
 
 class CrossoverProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super();
     this._initialized = false;
-    this._channels = 0;
-    this._crossoverFreq = 150;
-
-    // Butterworth LP coefficients (set during INIT)
+    this._channels = 2;
+    this._crossoverFreq = 175;
     this._lpB = null;
     this._lpA = null;
-
-    // Per-channel filter state for two cascaded stages
-    // Stage 1 state, stage 2 state, per channel
-    this._s1 = null; // [channels][2] — Direct Form II Transposed state
-    this._s2 = null;
-
+    this._hpB = null;
+    this._hpA = null;
+    this._lpS1 = null;
+    this._lpS2 = null;
+    this._hpS1 = null;
+    this._hpS2 = null;
     this.port.onmessage = (e) => this._handleMessage(e.data);
   }
 
   _handleMessage(msg) {
     if (msg.type === 'INIT') {
-      this._crossoverFreq = msg.crossoverFreq || 150;
+      this._crossoverFreq = msg.crossoverFreq || 175;
       this._channels = msg.channels || 2;
       this._initFilter(this._crossoverFreq);
       this._initialized = true;
@@ -37,24 +36,37 @@ class CrossoverProcessor extends AudioWorkletProcessor {
         this._initFilter(this._crossoverFreq);
         this.port.postMessage({ type: 'CROSSOVER_UPDATED', freq: this._crossoverFreq });
       }
+    } else if (msg.type === 'RESET') {
+      this._resetStates();
+      this.port.postMessage({ type: 'RESET_OK', ok: true });
     }
   }
 
   _initFilter(crossoverFreq) {
-    const coeffs = computeButterworthLP(crossoverFreq, sampleRate);
-    this._lpB = coeffs.b;
+    const coeffs = computeButterworth(crossoverFreq, sampleRate);
+    this._lpB = coeffs.lpB;
     this._lpA = coeffs.a;
-
-    // Pre-allocate state buffers: 2 stages × 2 channels × 2 state taps
-    this._s1 = new Array(this._channels);
-    this._s2 = new Array(this._channels);
-    for (let ch = 0; ch < this._channels; ch++) {
-      this._s1[ch] = new Float64Array(2);
-      this._s2[ch] = new Float64Array(2);
-    }
+    this._hpB = coeffs.hpB;
+    this._hpA = coeffs.a;
+    this._resetStates();
   }
 
-  process(inputs, outputs, parameters) {
+  _resetStates() {
+    this._lpS1 = this._makeStates();
+    this._lpS2 = this._makeStates();
+    this._hpS1 = this._makeStates();
+    this._hpS2 = this._makeStates();
+  }
+
+  _makeStates() {
+    const states = new Array(this._channels);
+    for (let ch = 0; ch < this._channels; ch++) {
+      states[ch] = new Float64Array(2);
+    }
+    return states;
+  }
+
+  process(inputs, outputs) {
     if (!this._initialized) return true;
 
     const input = inputs[0];
@@ -65,39 +77,53 @@ class CrossoverProcessor extends AudioWorkletProcessor {
 
     const chCount = Math.min(input.length, this._channels, outLow.length, outHigh.length);
     const len = input[0] ? input[0].length : 0;
+    if (!len) return true;
 
-    const b0 = this._lpB[0];
-    const b1 = this._lpB[1];
-    const b2 = this._lpB[2];
-    const a1 = this._lpA[1];
-    const a2 = this._lpA[2];
+    const lpB = this._lpB;
+    const lpA = this._lpA;
+    const hpB = this._hpB;
+    const hpA = this._hpA;
 
     for (let ch = 0; ch < chCount; ch++) {
-      const src = input[ch];
+      const src = input[ch] || input[0] || new Float32Array(len);
       const dstLow = outLow[ch];
       const dstHigh = outHigh[ch];
-      if (!src || !dstLow || !dstHigh) continue;
+      if (!dstLow || !dstHigh) continue;
 
-      const s1 = this._s1[ch];
-      const s2 = this._s2[ch];
+      const lpS1 = this._lpS1[ch];
+      const lpS2 = this._lpS2[ch];
+      const hpS1 = this._hpS1[ch];
+      const hpS2 = this._hpS2[ch];
 
       for (let i = 0; i < len; i++) {
         const x = src[i];
 
-        // Stage 1: Direct Form II Transposed
-        const w1 = x - a1 * s1[0] - a2 * s1[1];
-        const lp1 = b0 * w1 + b1 * s1[0] + b2 * s1[1];
-        s1[1] = s1[0];
-        s1[0] = w1;
+        // First low-pass section (Direct Form II Transposed).
+        let w = x - lpA[1] * lpS1[0] - lpA[2] * lpS1[1];
+        let lp = lpB[0] * w + lpB[1] * lpS1[0] + lpB[2] * lpS1[1];
+        lpS1[1] = lpS1[0];
+        lpS1[0] = w;
 
-        // Stage 2: cascade
-        const w2 = lp1 - a1 * s2[0] - a2 * s2[1];
-        const lp = b0 * w2 + b1 * s2[0] + b2 * s2[1];
-        s2[1] = s2[0];
-        s2[0] = w2;
+        // Second low-pass section.
+        w = lp - lpA[1] * lpS2[0] - lpA[2] * lpS2[1];
+        lp = lpB[0] * w + lpB[1] * lpS2[0] + lpB[2] * lpS2[1];
+        lpS2[1] = lpS2[0];
+        lpS2[0] = w;
+
+        // First high-pass section.
+        w = x - hpA[1] * hpS1[0] - hpA[2] * hpS1[1];
+        let hp = hpB[0] * w + hpB[1] * hpS1[0] + hpB[2] * hpS1[1];
+        hpS1[1] = hpS1[0];
+        hpS1[0] = w;
+
+        // Second high-pass section.
+        w = hp - hpA[1] * hpS2[0] - hpA[2] * hpS2[1];
+        hp = hpB[0] * w + hpB[1] * hpS2[0] + hpB[2] * hpS2[1];
+        hpS2[1] = hpS2[0];
+        hpS2[0] = w;
 
         dstLow[i] = lp;
-        dstHigh[i] = x - lp; // complementary high pass
+        dstHigh[i] = hp;
       }
     }
 
@@ -106,19 +132,20 @@ class CrossoverProcessor extends AudioWorkletProcessor {
 }
 
 /**
- * Compute 2nd-order Butterworth lowpass coefficients via bilinear transform.
- * @param {number} cutoffFreq - Cutoff frequency in Hz
- * @param {number} sr - Sample rate in Hz
- * @returns {{ b: number[], a: number[] }}
+ * Compute matched 2nd-order Butterworth low/high-pass coefficients.
+ * Cascading each section twice produces a Linkwitz-Riley 4th-order crossover.
  */
-function computeButterworthLP(cutoffFreq, sr) {
+function computeButterworth(cutoffFreq, sr) {
   const wc = Math.tan(Math.PI * cutoffFreq / sr);
+  const wc2 = wc * wc;
   const sqrt2 = Math.SQRT2;
-  const k = 1 / (1 + sqrt2 * wc + wc * wc);
+  const norm = 1 / (1 + sqrt2 * wc + wc2);
 
+  const a = [1, 2 * (wc2 - 1) * norm, (1 - sqrt2 * wc + wc2) * norm];
   return {
-    b: [k, 2 * k, k],
-    a: [1, 2 * (wc * wc - 1) * k, (1 - sqrt2 * wc + wc * wc) * k],
+    lpB: [wc2 * norm, 2 * wc2 * norm, wc2 * norm],
+    hpB: [norm, -2 * norm, norm],
+    a,
   };
 }
 

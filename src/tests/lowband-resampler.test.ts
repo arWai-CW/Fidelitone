@@ -1,88 +1,296 @@
 import { describe, it, expect } from "vitest";
+import { LowbandResampler } from "../processors/lowband-resampler.js";
 
-function cubicInterpolate(
-  p0: number,
-  p1: number,
-  p2: number,
-  p3: number,
-  t: number,
-): number {
-  const t2 = t * t;
-  const t3 = t2 * t;
-  return (
-    0.5 *
-    (2 * p1 +
-      (-p0 + p2) * t +
-      (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
-      (-p0 + 3 * p1 - 3 * p2 + p3) * t3)
+const BLOCK_SIZE = 128;
+const SAMPLE_RATE = 48000;
+
+function sineBlock(
+  len: number,
+  freq: number,
+  sr: number,
+  offset = 0,
+): Float32Array {
+  const out = new Float32Array(len);
+  for (let i = 0; i < len; i++) {
+    out[i] = Math.sin((2 * Math.PI * freq * (i + offset)) / sr);
+  }
+  return out;
+}
+
+function makeProcessor(
+  rate: number,
+  sampleRate = SAMPLE_RATE,
+): LowbandResampler {
+  const processor = new LowbandResampler();
+  (
+    processor as unknown as {
+      _handleMessage(data: Record<string, unknown>): void;
+    }
+  )._handleMessage({
+    type: "INIT",
+    channels: 2,
+    pitchScale: rate,
+    sampleRate,
+  });
+  return processor;
+}
+
+function runBlock(
+  processor: LowbandResampler,
+  input: Float32Array,
+): Float32Array {
+  const out = new Float32Array(BLOCK_SIZE);
+  processor.process([[input]], [[out]]);
+  return out;
+}
+
+function runStereoBlock(
+  processor: LowbandResampler,
+  left: Float32Array,
+  right: Float32Array,
+): [Float32Array, Float32Array] {
+  const leftOut = new Float32Array(BLOCK_SIZE);
+  const rightOut = new Float32Array(BLOCK_SIZE);
+  processor.process([[left, right]], [[leftOut, rightOut]]);
+  return [leftOut, rightOut];
+}
+
+function rms(values: Float32Array): number {
+  return Math.sqrt(
+    values.reduce((sum, value) => sum + value * value, 0) /
+      values.length,
   );
 }
 
-function resample(
-  input: Float32Array,
-  pitchScale: number,
-): Float32Array {
-  const outputLen = Math.round(input.length * pitchScale);
-  const padded = new Float32Array(input.length + 4);
-  padded[0] = 0;
-  padded[1] = 0;
-  for (let i = 0; i < input.length; i++) padded[i + 2] = input[i];
-  padded[input.length + 2] = input[input.length - 1];
-  padded[input.length + 3] = input[input.length - 1];
-
-  const output = new Float32Array(outputLen);
-  for (let outIdx = 0; outIdx < outputLen; outIdx++) {
-    const inputPos = outIdx / pitchScale;
-    const integerPos = Math.floor(inputPos);
-    const fraction = inputPos - integerPos;
-    const idx = integerPos + 2;
-    output[outIdx] = cubicInterpolate(
-      padded[idx - 1],
-      padded[idx],
-      padded[idx + 1],
-      padded[idx + 2],
-      fraction,
-    );
-  }
-  return output;
+function joinBlocks(blocks: Float32Array[]): Float32Array {
+  return new Float32Array(
+    blocks.flatMap((block) => Array.from(block)),
+  );
 }
 
-describe("lowband resampler", () => {
-  it("pitchScale=1.0 produces same-length output", () => {
-    const input = new Float32Array([0.1, 0.2, 0.3, 0.4]);
-    const output = resample(input, 1.0);
-    expect(output.length).toBe(4);
+function collectSineBlocks(
+  processor: LowbandResampler,
+  rate: number,
+  blocks = 120,
+): Float32Array[] {
+  const outputs: Float32Array[] = [];
+  let phase = 0;
+  for (let block = 0; block < blocks; block++) {
+    outputs.push(
+      runBlock(
+        processor,
+        sineBlock(BLOCK_SIZE, 100, SAMPLE_RATE, phase),
+      ),
+    );
+    phase += BLOCK_SIZE;
+  }
+  return outputs;
+}
+
+/** Estimate the strongest frequency near an expected pitch. */
+function peakFrequencyNear(
+  samples: Float32Array,
+  sr: number,
+  expected: number,
+): number {
+  let bestFrequency = expected;
+  let bestMagnitude = -1;
+
+  for (
+    let frequency = expected - 8;
+    frequency <= expected + 8;
+    frequency += 0.25
+  ) {
+    let real = 0;
+    let imaginary = 0;
+    for (let i = 0; i < samples.length; i++) {
+      const angle = (2 * Math.PI * frequency * i) / sr;
+      real += samples[i] * Math.cos(angle);
+      imaginary -= samples[i] * Math.sin(angle);
+    }
+    const magnitude = Math.hypot(real, imaginary);
+    if (magnitude > bestMagnitude) {
+      bestMagnitude = magnitude;
+      bestFrequency = frequency;
+    }
+  }
+
+  return bestFrequency;
+}
+
+function firstAudibleBlock(outputs: Float32Array[]): number {
+  return outputs.findIndex((output) => rms(output) > 0.01);
+}
+
+describe("LowbandResampler processor", () => {
+  it.each([0.5, 1, 1.5, 2])(
+    "rate=%s produces continuous bounded-latency output at the requested pitch",
+    (rate) => {
+      const processor = makeProcessor(rate);
+      const outputs = collectSineBlocks(processor, rate);
+      const firstAudible = firstAudibleBlock(outputs);
+
+      expect(firstAudible).toBeGreaterThanOrEqual(0);
+      expect(firstAudible).toBeLessThan(6);
+
+      const steadyBlocks = outputs.slice(firstAudible, firstAudible + 96);
+      expect(steadyBlocks).toHaveLength(96);
+      for (const output of steadyBlocks) {
+        expect(output.length).toBe(BLOCK_SIZE);
+        expect(rms(output)).toBeGreaterThan(0.05);
+        expect(output.every(Number.isFinite)).toBe(true);
+      }
+
+      const steadySamples = joinBlocks(steadyBlocks.slice(2));
+      const measured = peakFrequencyNear(
+        steadySamples,
+        SAMPLE_RATE,
+        100 * rate,
+      );
+      expect(Math.abs(measured - 100 * rate)).toBeLessThan(1.5);
+    },
+  );
+
+  it("keeps stereo channels coherent without collapsing them to one channel", () => {
+    const processor = makeProcessor(1);
+    const outputs: Array<[Float32Array, Float32Array]> = [];
+    for (let block = 0; block < 32; block++) {
+      outputs.push(
+        runStereoBlock(
+          processor,
+          sineBlock(BLOCK_SIZE, 80, SAMPLE_RATE, block * BLOCK_SIZE),
+          sineBlock(BLOCK_SIZE, 130, SAMPLE_RATE, block * BLOCK_SIZE),
+        ),
+      );
+    }
+
+    const firstAudible = outputs.findIndex(
+      ([left, right]) => rms(left) > 0.01 || rms(right) > 0.01,
+    );
+    const steady = outputs.slice(firstAudible, firstAudible + 48);
+    const left = joinBlocks(steady.map(([channel]) => channel));
+    const right = joinBlocks(steady.map(([, channel]) => channel));
+
+    expect(firstAudible).toBeLessThan(6);
+    expect(rms(left)).toBeGreaterThan(0.1);
+    expect(rms(right)).toBeGreaterThan(0.1);
+    expect(left.every(Number.isFinite)).toBe(true);
+    expect(right.every(Number.isFinite)).toBe(true);
+    expect(
+      left.some((value, index) => Math.abs(value - right[index]) > 0.01),
+    ).toBe(true);
   });
 
-  it("pitchScale=2.0 doubles output length", () => {
-    const input = new Float32Array([0.1, 0.2, 0.3, 0.4]);
-    const output = resample(input, 2.0);
-    expect(output.length).toBe(8);
+  it("updates pitch without resetting the live buffer", () => {
+    const processor = makeProcessor(1);
+    collectSineBlocks(processor, 1, 12);
+
+    (
+      processor as unknown as {
+        _handleMessage(data: Record<string, unknown>): void;
+      }
+    )._handleMessage({ type: "SET_PITCH", pitchScale: 1.5 });
+
+    const updated: Float32Array[] = [];
+    let phase = 12 * BLOCK_SIZE;
+    for (let block = 0; block < 64; block++) {
+      updated.push(
+        runBlock(
+          processor,
+          sineBlock(BLOCK_SIZE, 100, SAMPLE_RATE, phase),
+        ),
+      );
+      phase += BLOCK_SIZE;
+    }
+
+    expect(rms(updated[0])).toBeGreaterThan(0.01);
+    expect(joinBlocks(updated).every(Number.isFinite)).toBe(true);
+
+    const steadySamples = joinBlocks(updated.slice(8));
+    const measured = peakFrequencyNear(
+      steadySamples,
+      SAMPLE_RATE,
+      150,
+    );
+    expect(Math.abs(measured - 150)).toBeLessThan(1.5);
   });
 
-  it("pitchScale=0.5 halves output length", () => {
-    const input = new Float32Array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6]);
-    const output = resample(input, 0.5);
-    expect(output.length).toBe(3);
+  it("recovers after an input gap without treating two empty blocks as fatal", () => {
+    const processor = makeProcessor(1);
+    const outputs: Float32Array[] = [];
+    let phase = 0;
+    for (let block = 0; block < 12; block++) {
+      outputs.push(
+        runBlock(
+          processor,
+          sineBlock(BLOCK_SIZE, 100, SAMPLE_RATE, phase),
+        ),
+      );
+      phase += BLOCK_SIZE;
+    }
+    for (let block = 0; block < 4; block++) {
+      outputs.push(runBlock(processor, new Float32Array(BLOCK_SIZE)));
+    }
+    for (let block = 0; block < 24; block++) {
+      outputs.push(
+        runBlock(
+          processor,
+          sineBlock(BLOCK_SIZE, 100, SAMPLE_RATE, phase),
+        ),
+      );
+      phase += BLOCK_SIZE;
+    }
+
+    const resumed = outputs.slice(16);
+    expect(resumed.slice(0, 4).every((output) => output.every(Number.isFinite))).toBe(true);
+    expect(rms(resumed[8])).toBeGreaterThan(0.01);
+    expect(joinBlocks(resumed.slice(8)).every(Number.isFinite)).toBe(true);
   });
 
-  it("resampling preserves DC offset", () => {
-    const input = new Float32Array(64).fill(0.5);
-    const output = resample(input, 1.5);
-    for (let i = 10; i < output.length - 10; i++) {
-      expect(output[i]).toBeCloseTo(0.5, 2);
+  it("stays continuous over a long stream at slow and fast rates", () => {
+    for (const rate of [0.5, 2] as const) {
+      const processor = makeProcessor(rate);
+      const outputs = collectSineBlocks(processor, rate, 480);
+      const firstAudible = firstAudibleBlock(outputs);
+      const steady = outputs.slice(firstAudible + 4);
+
+      expect(firstAudible).toBeLessThan(6);
+      expect(
+        steady.filter((output) => rms(output) < 0.001),
+      ).toHaveLength(0);
+      expect(joinBlocks(steady).every(Number.isFinite)).toBe(true);
     }
   });
 
-  it("cubic interpolation is smooth (no discontinuities)", () => {
-    const input = new Float32Array(128);
-    for (let i = 0; i < 128; i++) {
-      input[i] = Math.sin((2 * Math.PI * 10 * i) / 48000);
-    }
-    const output = resample(input, 1.3348);
-    for (let i = 1; i < output.length; i++) {
-      const diff = Math.abs(output[i] - output[i - 1]);
-      expect(diff).toBeLessThan(0.1);
+  it("bounds low-rate latency with forward timeline repair", () => {
+    const processor = makeProcessor(0.5);
+    collectSineBlocks(processor, 0.5, 480);
+
+    const state = processor as unknown as {
+      _readPos: number;
+      _channelStates: Array<{ input: { writeIndex: number } }>;
+    };
+    const writeIndex = state._channelStates[0].input.writeIndex;
+
+    expect(writeIndex - state._readPos).toBeLessThan(4608);
+    expect(state._readPos).toBeGreaterThan(0);
+  });
+
+  it("clamps invalid rates instead of producing NaNs", () => {
+    for (const [input, expected] of [
+      [0, 0.5],
+      [-1, 0.5],
+      [NaN, 0.5],
+      [3, 2],
+    ] as const) {
+      const processor = makeProcessor(input);
+      expect(
+        (
+          processor as unknown as {
+            _targetRate: number;
+          }
+        )._targetRate,
+      ).toBe(expected);
     }
   });
 });

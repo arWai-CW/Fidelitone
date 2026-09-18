@@ -5,22 +5,30 @@ class RingBuffer {
     this.writePos = 0;
     this.count = 0;
   }
+
   push(data) {
     for (let i = 0; i < data.length; i++) {
+      if (this.count === this.buffer.length) {
+        this.readPos = (this.readPos + 1) % this.buffer.length;
+        this.count--;
+      }
       this.buffer[this.writePos] = data[i];
       this.writePos = (this.writePos + 1) % this.buffer.length;
       this.count++;
     }
   }
+
   pop(length) {
     const result = new Float32Array(length);
-    for (let i = 0; i < length; i++) {
+    const available = Math.min(length, this.count);
+    for (let i = 0; i < available; i++) {
       result[i] = this.buffer[this.readPos];
       this.readPos = (this.readPos + 1) % this.buffer.length;
-      this.count--;
     }
+    this.count -= available;
     return result;
   }
+
   available() { return this.count; }
   reset() { this.readPos = 0; this.writePos = 0; this.count = 0; }
 }
@@ -58,6 +66,7 @@ class RubberBandProcessor extends AudioWorkletProcessor {
     } else if (msg.type === 'RESET') {
       if (this.inputRings) this.inputRings.forEach(r => r.reset());
       if (this.outputRings) this.outputRings.forEach(r => r.reset());
+      this.port.postMessage({ type: 'RESET_OK', ok: true });
     }
   }
 

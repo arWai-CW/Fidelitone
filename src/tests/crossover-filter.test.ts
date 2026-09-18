@@ -1,12 +1,21 @@
 import { describe, it, expect } from "vitest";
 
-function computeButterworthLP(cutoffFreq: number, sr: number) {
+interface ButterworthCoefficients {
+  lpB: number[];
+  hpB: number[];
+  a: number[];
+}
+
+function computeButterworth(cutoffFreq: number, sr: number): ButterworthCoefficients {
   const wc = Math.tan((Math.PI * cutoffFreq) / sr);
+  const wc2 = wc * wc;
   const sqrt2 = Math.SQRT2;
-  const k = 1 / (1 + sqrt2 * wc + wc * wc);
+  const norm = 1 / (1 + sqrt2 * wc + wc2);
+
   return {
-    b: [k, 2 * k, k],
-    a: [1, 2 * (wc * wc - 1) * k, (1 - sqrt2 * wc + wc * wc) * k],
+    lpB: [wc2 * norm, 2 * wc2 * norm, wc2 * norm],
+    hpB: [norm, -2 * norm, norm],
+    a: [1, 2 * (wc2 - 1) * norm, (1 - sqrt2 * wc + wc2) * norm],
   };
 }
 
@@ -32,99 +41,78 @@ function cascadeTwoStages(
   b: number[],
   a: number[],
 ): Float32Array {
-  const stage1 = applyFilterDF2T(input, b, a);
-  return applyFilterDF2T(stage1, b, a);
+  return applyFilterDF2T(applyFilterDF2T(input, b, a), b, a);
 }
 
-describe("crossover filter", () => {
+function rms(values: Float32Array): number {
+  return Math.sqrt(values.reduce((sum, value) => sum + value * value, 0) / values.length);
+}
+
+function steadyStateRmsGain(input: Float32Array, output: Float32Array, discard = 4096): number {
+  const inputGain = rms(input.slice(discard));
+  return inputGain === 0 ? 0 : rms(output.slice(discard)) / inputGain;
+}
+
+describe("Linkwitz-Riley crossover coefficients", () => {
   const sr = 48000;
-  const cutoff = 150;
+  const cutoff = 175;
 
-  it("Butterworth LP coefficients are valid", () => {
-    const { b, a } = computeButterworthLP(cutoff, sr);
-    expect(b.length).toBe(3);
-    expect(a.length).toBe(3);
+  it("uses matched Butterworth-derived low-pass and high-pass numerators", () => {
+    const { lpB, hpB, a } = computeButterworth(cutoff, sr);
+    expect(lpB).toHaveLength(3);
+    expect(hpB).toHaveLength(3);
+    expect(a).toHaveLength(3);
     expect(a[0]).toBe(1);
-    expect(b[0]).toBeGreaterThan(0);
+    expect(lpB[0]).toBeGreaterThan(0);
+    expect(hpB[0]).toBeGreaterThan(0);
+    expect(lpB[0]).toBeLessThan(hpB[0]);
   });
 
-  it("cascaded LP passes DC (0Hz) with constant gain", () => {
-    const { b, a } = computeButterworthLP(cutoff, sr);
-    const dc = new Float32Array(2048).fill(0.5);
-    const out = cascadeTwoStages(dc, b, a);
-    const settled = out[2047];
-    expect(settled).not.toBeNaN();
-    expect(settled).toBeGreaterThan(0);
-    for (let i = 1800; i < 2048; i++) {
-      expect(out[i]).toBeCloseTo(settled, 4);
+  it("passes DC through the cascaded low band", () => {
+    const { lpB, a } = computeButterworth(cutoff, sr);
+    const dc = new Float32Array(8192).fill(0.5);
+    const out = cascadeTwoStages(dc, lpB, a);
+    expect(steadyStateRmsGain(dc, out)).toBeCloseTo(1, 4);
+  });
+
+  it("rejects DC and passes 10kHz through the cascaded high band", () => {
+    const { hpB, a } = computeButterworth(cutoff, sr);
+    const dc = new Float32Array(8192).fill(0.5);
+    const dcOut = cascadeTwoStages(dc, hpB, a);
+    expect(steadyStateRmsGain(dc, dcOut)).toBeLessThan(0.001);
+
+    const input = new Float32Array(8192);
+    for (let i = 0; i < input.length; i++) {
+      input[i] = Math.sin((2 * Math.PI * 10000 * i) / sr);
     }
+    const out = cascadeTwoStages(input, hpB, a);
+    expect(steadyStateRmsGain(input, out)).toBeGreaterThan(0.98);
   });
 
-  it("cascaded LP attenuates 10kHz relative to DC gain", () => {
-    const { b, a } = computeButterworthLP(cutoff, sr);
-    const dc = new Float32Array(4096).fill(0.5);
-    const outDC = cascadeTwoStages(dc, b, a);
-    const dcGain = outDC[4095] / 0.5;
-
-    const freq = 10000;
-    const signal = new Float32Array(8192);
-    for (let i = 0; i < signal.length; i++) {
-      signal[i] = Math.sin((2 * Math.PI * freq * i) / sr);
+  it("keeps the recombined band magnitude flat at 1kHz", () => {
+    const coeffs = computeButterworth(cutoff, sr);
+    const input = new Float32Array(12288);
+    for (let i = 0; i < input.length; i++) {
+      input[i] = Math.sin((2 * Math.PI * 1000 * i) / sr);
     }
-    const out = cascadeTwoStages(signal, b, a);
-    const outputRMS = Math.sqrt(
-      out.slice(4096).reduce((s, v) => s + v * v, 0) / 4096,
-    );
-    expect(outputRMS).toBeLessThan(0.5 * dcGain * 0.01);
+    const low = cascadeTwoStages(input, coeffs.lpB, coeffs.a);
+    const high = cascadeTwoStages(input, coeffs.hpB, coeffs.a);
+    const recombined = input.map((value, index) => low[index] + high[index]);
+    expect(steadyStateRmsGain(input, recombined)).toBeCloseTo(1, 1);
   });
 
-  it("LP + HP sums to flat magnitude at 1kHz", () => {
-    const { b, a } = computeButterworthLP(cutoff, sr);
-    const freq = 1000;
-    const signal = new Float32Array(8192);
-    for (let i = 0; i < signal.length; i++) {
-      signal[i] = Math.sin((2 * Math.PI * freq * i) / sr);
+  it("routes 50Hz to the low band and 1kHz primarily to the high band", () => {
+    const coeffs = computeButterworth(cutoff, sr);
+    const lowInput = new Float32Array(8192);
+    const highInput = new Float32Array(8192);
+    for (let i = 0; i < lowInput.length; i++) {
+      lowInput[i] = Math.sin((2 * Math.PI * 50 * i) / sr);
+      highInput[i] = Math.sin((2 * Math.PI * 1000 * i) / sr);
     }
-    const lp = cascadeTwoStages(signal, b, a);
-    const hp = signal.map((v, i) => v - lp[i]);
-    const sum = lp.map((v, i) => v + hp[i]);
-    const inputRMS = Math.sqrt(
-      signal.slice(4096).reduce((s, v) => s + v * v, 0) / 4096,
-    );
-    const sumRMS = Math.sqrt(
-      sum.slice(4096).reduce((s, v) => s + v * v, 0) / 4096,
-    );
-    expect(sumRMS).toBeCloseTo(inputRMS, 1);
-  });
 
-  it("crossover: 100Hz passes LP, 1kHz mostly in HP", () => {
-    const { b, a } = computeButterworthLP(cutoff, sr);
-    const makeSignal = (freq: number) => {
-      const s = new Float32Array(8192);
-      for (let i = 0; i < s.length; i++)
-        s[i] = Math.sin((2 * Math.PI * freq * i) / sr);
-      return s;
-    };
-
-    const lowSig = makeSignal(100);
-    const lpLow = cascadeTwoStages(lowSig, b, a);
-    const lpLowRMS = Math.sqrt(
-      lpLow.slice(4096).reduce((s, v) => s + v * v, 0) / 4096,
-    );
-    const lowInputRMS = Math.sqrt(
-      lowSig.slice(4096).reduce((s, v) => s + v * v, 0) / 4096,
-    );
-    expect(lpLowRMS).toBeGreaterThan(lowInputRMS * 0.8);
-
-    const highSig = makeSignal(1000);
-    const lpHigh = cascadeTwoStages(highSig, b, a);
-    const hpHigh = highSig.map((v, i) => v - lpHigh[i]);
-    const hpHighRMS = Math.sqrt(
-      hpHigh.slice(4096).reduce((s, v) => s + v * v, 0) / 4096,
-    );
-    const highInputRMS = Math.sqrt(
-      highSig.slice(4096).reduce((s, v) => s + v * v, 0) / 4096,
-    );
-    expect(hpHighRMS).toBeGreaterThan(highInputRMS * 0.8);
+    const lowBand = cascadeTwoStages(lowInput, coeffs.lpB, coeffs.a);
+    const highBand = cascadeTwoStages(highInput, coeffs.hpB, coeffs.a);
+    expect(steadyStateRmsGain(lowInput, lowBand)).toBeGreaterThan(0.98);
+    expect(steadyStateRmsGain(highInput, highBand)).toBeGreaterThan(0.95);
   });
 });
