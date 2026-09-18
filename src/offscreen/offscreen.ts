@@ -1,8 +1,29 @@
 // Offscreen audio engine — RubberBand LiveShifter, Signalsmith Stretch, and
 // multiband accompaniment processing.
 
-import { createSignalsmithEngine, setSignalsmithPitch, type SignalsmithEngine } from "../lib/dsp/signalsmith-fallback";
+import { createSignalsmithEngine, setSignalsmithPitch, setSignalsmithPitchWithFormants, type SignalsmithEngine } from "../lib/dsp/signalsmith-fallback";
 import { postWorkletMessage } from "../lib/dsp/worklet-message";
+
+type Engine = "rubberband" | "signalsmith";
+
+interface EngineAvailability {
+  signalsmith: boolean;
+  rubberband: boolean;
+}
+
+interface CaptureState {
+  ready: boolean;
+  connected: boolean;
+  pitch: number;
+  bypass: boolean;
+  preserveFormants: boolean;
+  accompanimentMode: boolean;
+  engine: Engine;
+  selectedEngine: Engine;
+  route: string;
+  captureLost: boolean;
+  engineAvailability: EngineAvailability;
+}
 
 let wasmExports: any = null;
 let wasmLoaded = false;
@@ -391,6 +412,15 @@ async function initSignalsmith(): Promise<boolean> {
       signalsmithNode = engine.node as unknown as AudioWorkletNode;
       signalsmithReady = true;
       console.log("[A/B] Signalsmith engine initialized");
+
+      // Apply current pitch and formant settings to the newly initialized engine
+      await setSignalsmithPitchWithFormants(
+        { node: signalsmithNode as unknown as SignalsmithEngine["node"], ready: true },
+        currentSemitones,
+        preserveFormants,
+        requireCtx(),
+      ).catch((err) => console.error("[offscreen] Signalsmith initial pitch/formant update failed:", err));
+
       return true;
     } catch (err) {
       console.error("[A/B] Signalsmith init failed:", err);
@@ -647,7 +677,7 @@ function connectSource(preserveGains = false): boolean {
   return true;
 }
 
-function getCaptureState() {
+function getCaptureState(): CaptureState {
   const engine = effectiveEngine();
   const route = isBypass
     ? "bypass"
@@ -662,8 +692,13 @@ function getCaptureState() {
     preserveFormants,
     accompanimentMode: isAccompanimentMode,
     engine,
+    selectedEngine: activeEngine,
     route,
     captureLost,
+    engineAvailability: {
+      signalsmith: signalsmithReady && !!signalsmithNode,
+      rubberband: engineReady && !!rbNode,
+    },
   };
 }
 
@@ -740,9 +775,10 @@ function applyCurrentPitch(): void {
     lowbandResamplerNode.port.postMessage({ type: "SET_PITCH", pitchScale });
   }
   if (signalsmithReady && signalsmithNode) {
-    void setSignalsmithPitch(
+    void setSignalsmithPitchWithFormants(
       { node: signalsmithNode as unknown as SignalsmithEngine["node"], ready: true },
       currentSemitones,
+      preserveFormants,
       requireCtx(),
     ).catch((err) => console.error("[offscreen] Signalsmith pitch update failed:", err));
   }
@@ -786,6 +822,18 @@ async function handleSetFormants(value: { preserve: boolean }): Promise<boolean>
   if (typeof value?.preserve !== "boolean") return false;
   preserveFormants = value.preserve;
   setFormantOption(preserveFormants);
+
+  // Also update Signalsmith if it's initialized (regardless of whether it's currently active)
+  // This ensures the setting persists when user later switches to Signalsmith
+  if (signalsmithReady && signalsmithNode) {
+    void setSignalsmithPitchWithFormants(
+      { node: signalsmithNode as unknown as SignalsmithEngine["node"], ready: true },
+      currentSemitones,
+      preserveFormants,
+      requireCtx(),
+    ).catch((err) => console.error("[offscreen] Signalsmith formant update failed:", err));
+  }
+
   console.log("[offscreen] Formant preservation →", preserveFormants ? "ON" : "OFF");
   return true;
 }
@@ -850,6 +898,9 @@ async function handleSetEngine(engine: "rubberband" | "signalsmith"): Promise<bo
       return false;
     }
     crossfade(previousEngine, engine);
+    
+    // Apply current pitch and formant settings to the newly activated engine
+    applyCurrentPitch();
   } else {
     setEngineGains(engine);
   }
