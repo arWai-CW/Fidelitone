@@ -59,8 +59,20 @@ function flatHtmlOutput(): Plugin {
         const procDir = "dist/processors";
         if (!existsSync(procDir)) mkdirSync(procDir, { recursive: true });
         for (const f of readdirSync("src/processors")) {
-          if (statSync(`src/processors/${f}`).isFile()) copyFileSync(`src/processors/${f}`, `${procDir}/${f}`);
+          if (f.endsWith(".js") && statSync(`src/processors/${f}`).isFile()) {
+            copyFileSync(`src/processors/${f}`, `${procDir}/${f}`);
+          }
         }
+      }
+
+      // Signalsmith embeds its WASM in this self-contained worklet module. Copy
+      // it as a static extension asset so the factory can use moduleUrl instead
+      // of creating a blob URL at runtime.
+      const signalsmithSource = "node_modules/signalsmith-stretch/SignalsmithStretch.mjs";
+      if (existsSync(signalsmithSource)) {
+        const procDir = "dist/processors";
+        if (!existsSync(procDir)) mkdirSync(procDir, { recursive: true });
+        copyFileSync(signalsmithSource, `${procDir}/signalsmith-stretch.js`);
       }
     },
   };
