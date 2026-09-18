@@ -28,7 +28,7 @@ echo "=== Rubber Band WASM Build ==="
 echo "Source: $RUBBERBAND_DIR"
 echo "Compiler: $(which emcc)"
 
-CFLAGS="-I${RUBBERBAND_DIR}/rubberband -O0 -fno-rtti"
+CFLAGS="-I${RUBBERBAND_DIR}/rubberband -O3 -fno-rtti"
 CXXFLAGS="${CFLAGS}"
 
 rm -rf build
@@ -54,8 +54,8 @@ WASM_SIZE=$(wc -c < "${PROJECT_DIR}/src/wasm/rubberband.wasm" | tr -d ' ')
 echo "=== Build complete ==="
 echo "Output: src/wasm/rubberband.wasm (${WASM_SIZE} bytes)"
 
-if [ "$WASM_SIZE" -lt 512000 ]; then
-  echo "WARNING: WASM file is smaller than 500KB"
+if [ "$WASM_SIZE" -lt 400000 ]; then
+  echo "WARNING: WASM file is smaller than 400KB"
   exit 1
 fi
 

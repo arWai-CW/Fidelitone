@@ -4,3 +4,4 @@ dist/
 .omo
 .playwright-mcp
 .zcode
+src/wasm/build/
