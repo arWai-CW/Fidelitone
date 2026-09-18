@@ -50,23 +50,20 @@ const connectionText = getElement<HTMLSpanElement>("connectionText");
 const connectionHeadline = getElement<HTMLElement>("connectionHeadline");
 const connectionDetail = getElement<HTMLSpanElement>("connectionDetail");
 const connectBtn = getElement<HTMLButtonElement>("connectBtn");
+const bypassBtn = getElement<HTMLButtonElement>("bypassBtn");
 const errorMsg = getElement<HTMLDivElement>("errorMsg");
 const pitchNumber = getElement<HTMLSpanElement>("pitchNumber");
 const pitchSlider = getElement<HTMLInputElement>("pitchSlider");
 const pitchDown = getElement<HTMLButtonElement>("pitchDown");
 const pitchUp = getElement<HTMLButtonElement>("pitchUp");
+const pitchReset = getElement<HTMLButtonElement>("pitchReset");
 const snapCheckbox = getElement<HTMLInputElement>("snapCheckbox");
 const formantCheckbox = getElement<HTMLInputElement>("formantCheckbox");
 const accompanimentCheckbox = getElement<HTMLInputElement>("accompanimentCheckbox");
-const routeBadge = getElement<HTMLSpanElement>("routeBadge");
 const engineNote = getElement<HTMLParagraphElement>("engineNote");
 const engineSignalsmith = getElement<HTMLButtonElement>("engineSignalsmith");
 const engineRubberband = getElement<HTMLButtonElement>("engineRubberband");
-const signalsmithStatus = getElement<HTMLSpanElement>("signalsmithStatus");
-const rubberbandStatus = getElement<HTMLSpanElement>("rubberbandStatus");
-const activeMode = getElement<HTMLButtonElement>("activeMode");
-const bypassMode = getElement<HTMLButtonElement>("bypassMode");
-const modeNote = getElement<HTMLParagraphElement>("modeNote");
+const tooltip = getElement<HTMLDivElement>("tooltip");
 
 let connected = false;
 let connecting = false;
@@ -119,6 +116,7 @@ function updateStepButtons() {
   const value = getPitch();
   pitchDown.disabled = value <= PITCH_MIN;
   pitchUp.disabled = value >= PITCH_MAX;
+  pitchReset.disabled = value === 0;
 }
 
 function refreshControlAvailability() {
@@ -131,17 +129,18 @@ function refreshControlAvailability() {
   pitchSlider.disabled = locked;
   pitchDown.disabled = locked || getPitch() <= PITCH_MIN;
   pitchUp.disabled = locked || getPitch() >= PITCH_MAX;
+  pitchReset.disabled = locked || getPitch() === 0;
   snapCheckbox.disabled = locked;
   formantCheckbox.disabled = locked;
   accompanimentCheckbox.disabled = locked;
-  activeMode.disabled = locked;
-  bypassMode.disabled = locked;
+  bypassBtn.disabled = locked;
 
   const accompanimentLocksRubberband = accompanimentCheckbox.checked;
   engineSignalsmith.disabled = locked;
   engineRubberband.disabled = locked || accompanimentLocksRubberband || !engineAvailability.rubberband;
 
   renderEngineState();
+  updateBypassButtonState();
 }
 
 function renderConnectionState() {
@@ -152,22 +151,26 @@ function renderConnectionState() {
     connectionText.textContent = "連線中";
     connectionHeadline.textContent = "正在建立音訊通道";
     connectionDetail.textContent = "請不要關閉目前分頁";
-    connectBtn.textContent = "連線中";
+    connectBtn.setAttribute("aria-label", "正在連線");
+    connectBtn.setAttribute("data-tooltip", "正在連線...");
   } else if (state === "connected") {
     connectionText.textContent = "已連線";
     connectionHeadline.textContent = "音訊通道已建立";
     connectionDetail.textContent = "目前分頁音訊正在處理";
-    connectBtn.textContent = "停止";
+    connectBtn.setAttribute("aria-label", "斷開連線");
+    connectBtn.setAttribute("data-tooltip", "斷開連線");
   } else if (state === "lost") {
     connectionText.textContent = "連線中斷";
     connectionHeadline.textContent = "音訊通道已中斷";
     connectionDetail.textContent = "重新連線後可繼續處理";
-    connectBtn.textContent = "重新連線";
+    connectBtn.setAttribute("aria-label", "重新連線");
+    connectBtn.setAttribute("data-tooltip", "重新連線");
   } else {
     connectionText.textContent = "尚未連線";
     connectionHeadline.textContent = "等待開始";
     connectionDetail.textContent = "開啟分頁音訊後會自動連線";
-    connectBtn.textContent = "立即連線";
+    connectBtn.setAttribute("aria-label", "連線音訊");
+    connectBtn.setAttribute("data-tooltip", "連線音訊");
   }
 
   connectBtn.disabled = connecting;
@@ -292,50 +295,33 @@ function getRouteLabel(route: string | null): string {
 
 function renderEngineState() {
   const accompanimentLocksRubberband = accompanimentCheckbox.checked;
-  const engines: Array<[HTMLButtonElement, HTMLSpanElement, Engine]> = [
-    [engineSignalsmith, signalsmithStatus, "signalsmith"],
-    [engineRubberband, rubberbandStatus, "rubberband"],
+  const engines: Array<[HTMLButtonElement, Engine]> = [
+    [engineSignalsmith, "signalsmith"],
+    [engineRubberband, "rubberband"],
   ];
 
-  for (const [button, status, engine] of engines) {
+  for (const [button, engine] of engines) {
     const selected = engine === selectedEngine;
     const available = engineAvailability[engine];
     const fixedForAccompaniment = accompanimentLocksRubberband && engine === "rubberband";
     button.classList.toggle("is-selected", selected);
     button.setAttribute("aria-checked", String(selected));
     button.disabled = !connected || connecting || captureLost || fixedForAccompaniment || (engine === "rubberband" && !available);
-
-    if (!connected || connecting || captureLost) {
-      status.textContent = "待命";
-    } else if (fixedForAccompaniment) {
-      status.textContent = "固定高頻";
-    } else if (selected) {
-      status.textContent = "使用中";
-    } else if (available) {
-      status.textContent = "已就緒";
-    } else if (engine === "signalsmith") {
-      status.textContent = "待命";
-    } else {
-      status.textContent = "不可用";
-    }
   }
 
-  routeBadge.textContent = getRouteLabel(currentRoute);
   if (accompanimentCheckbox.checked) {
     engineNote.textContent = "伴奏模式固定使用 Signalsmith 高頻";
   } else if (!connected) {
     engineNote.textContent = "連線後可切換處理引擎";
   } else {
-    engineNote.textContent = `目前路由：${getRouteLabel(currentRoute)}`;
+    engineNote.textContent = `目前引擎：${getRouteLabel(currentRoute)}`;
   }
 }
 
-function renderModeState() {
-  activeMode.classList.toggle("is-selected", !isBypassed);
-  bypassMode.classList.toggle("is-selected", isBypassed);
-  activeMode.setAttribute("aria-checked", String(!isBypassed));
-  bypassMode.setAttribute("aria-checked", String(isBypassed));
-  modeNote.textContent = isBypassed ? "原始分頁音訊直通" : "音訊會經過目前引擎";
+function updateBypassButtonState() {
+  bypassBtn.setAttribute("aria-pressed", String(isBypassed));
+  bypassBtn.setAttribute("aria-label", isBypassed ? "停用旁路" : "啟用旁路");
+  bypassBtn.setAttribute("data-tooltip", isBypassed ? "停用旁路 (引擎處理)" : "啟用旁路 (原始音訊直通)");
 }
 
 function applySnap(snap: boolean) {
@@ -361,7 +347,7 @@ function applyStoredUi(data: StoredSettings) {
   selectedEngine = isEngine(data.engine) ? data.engine : "rubberband";
 
   renderEngineState();
-  renderModeState();
+  updateBypassButtonState();
   refreshControlAvailability();
 }
 
@@ -382,7 +368,7 @@ function applyLiveState(state: CaptureState) {
   accompanimentCheckbox.checked = state.accompanimentMode === true;
 
   renderEngineState();
-  renderModeState();
+  updateBypassButtonState();
   renderConnectionState();
 }
 
@@ -536,6 +522,73 @@ async function syncConnectionState(): Promise<CaptureState | null> {
   return response.state;
 }
 
+/* Tooltip handling */
+let tooltipHideTimer: number | null = null;
+
+function showTooltip(element: HTMLElement) {
+  const text = element.getAttribute("data-tooltip");
+  if (!text) return;
+  
+  tooltip.textContent = text;
+  tooltip.classList.add("visible");
+  
+  const rect = element.getBoundingClientRect();
+  const tooltipRect = tooltip.getBoundingClientRect();
+  
+  let left = rect.left + rect.width / 2 - tooltipRect.width / 2;
+  let top = rect.top - tooltipRect.height - 8;
+  
+  // Keep tooltip within viewport
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  
+  if (left < 8) left = 8;
+  if (left + tooltipRect.width > viewportWidth - 8) left = viewportWidth - tooltipRect.width - 8;
+  if (top < 8) {
+    top = rect.bottom + 8;
+    tooltip.style.transform = "translateX(-50%) rotate(180deg)";
+    tooltip.style.top = `${top}px`;
+    tooltip.style.left = `${left}px`;
+    return;
+  }
+  
+  tooltip.style.transform = "translateX(-50%)";
+  tooltip.style.top = `${top}px`;
+  tooltip.style.left = `${left}px`;
+}
+
+function hideTooltip() {
+  if (tooltipHideTimer) {
+    clearTimeout(tooltipHideTimer);
+    tooltipHideTimer = null;
+  }
+  tooltip.classList.remove("visible");
+}
+
+function scheduleHideTooltip() {
+  tooltipHideTimer = window.setTimeout(hideTooltip, 200);
+}
+
+// Attach tooltip listeners to all elements with data-tooltip
+function attachTooltipListeners() {
+  const elements = document.querySelectorAll<HTMLElement>("[data-tooltip]");
+  elements.forEach((el) => {
+    el.addEventListener("mouseenter", () => {
+      if (tooltipHideTimer) {
+        clearTimeout(tooltipHideTimer);
+        tooltipHideTimer = null;
+      }
+      showTooltip(el);
+    });
+    el.addEventListener("mouseleave", scheduleHideTooltip);
+    el.addEventListener("focus", () => showTooltip(el));
+    el.addEventListener("blur", scheduleHideTooltip);
+  });
+  
+  // Also hide tooltip when clicking elsewhere
+  document.addEventListener("click", () => hideTooltip());
+}
+
 snapCheckbox.addEventListener("change", () => {
   if (isProcessingLocked()) return;
   const snap = snapCheckbox.checked;
@@ -593,6 +646,23 @@ connectBtn.addEventListener("click", async () => {
   }
 });
 
+bypassBtn.addEventListener("click", async () => {
+  // Allow bypass toggle even when bypassed (but not when disconnected/connecting/lost)
+  if (!connected || connecting || captureLost) return;
+  const previousBypass = isBypassed;
+  isBypassed = !isBypassed;
+  updateBypassButtonState();
+  await storageSet({ bypass: isBypassed }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
+
+  if (!(await sendSafe({ type: "SET_BYPASS", value: { active: isBypassed } }))) {
+    isBypassed = previousBypass;
+    updateBypassButtonState();
+    await storageSet({ bypass: previousBypass }).catch(() => undefined);
+  } else {
+    await refreshRouteState();
+  }
+});
+
 pitchSlider.addEventListener("input", () => {
   if (isProcessingLocked()) return;
   void updatePitch(getPitch(), true).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
@@ -606,6 +676,11 @@ pitchDown.addEventListener("click", () => {
 pitchUp.addEventListener("click", () => {
   if (isProcessingLocked()) return;
   void updatePitch(getPitch() + getPitchStep(), true).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
+});
+
+pitchReset.addEventListener("click", () => {
+  if (isProcessingLocked()) return;
+  void updatePitch(0, true).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
 });
 
 engineSignalsmith.addEventListener("click", async () => {
@@ -644,38 +719,6 @@ engineRubberband.addEventListener("click", async () => {
   }
 });
 
-activeMode.addEventListener("click", async () => {
-  if (isProcessingLocked()) return;
-  const previousBypass = isBypassed;
-  isBypassed = false;
-  renderModeState();
-  await storageSet({ bypass: false }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
-
-  if (!(await sendSafe({ type: "SET_BYPASS", value: { active: false } }))) {
-    isBypassed = previousBypass;
-    renderModeState();
-    await storageSet({ bypass: previousBypass }).catch(() => undefined);
-  } else {
-    await refreshRouteState();
-  }
-});
-
-bypassMode.addEventListener("click", async () => {
-  if (isProcessingLocked()) return;
-  const previousBypass = isBypassed;
-  isBypassed = true;
-  renderModeState();
-  await storageSet({ bypass: true }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
-
-  if (!(await sendSafe({ type: "SET_BYPASS", value: { active: true } }))) {
-    isBypassed = previousBypass;
-    renderModeState();
-    await storageSet({ bypass: previousBypass }).catch(() => undefined);
-  } else {
-    await refreshRouteState();
-  }
-});
-
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   const title = tabs[0]?.title ?? "No active tab";
   tabTitle.textContent = title;
@@ -702,22 +745,24 @@ async function initializePopup() {
   if (liveState) {
     applyLiveState(liveState);
     setConnected(liveState.connected);
-    return;
-  }
-
-  let storedConnected: boolean | null = null;
-  try {
-    const currentStored = await getStoredSettings();
-    storedConnected = typeof currentStored.connected === "boolean" ? currentStored.connected : null;
-  } catch (err) {
-    console.warn("[popup] Stored connection state unavailable:", err);
-  }
-
-  if (storedConnected === false) {
-    setConnected(false);
   } else {
-    await connectCurrentTab();
+    let storedConnected: boolean | null = null;
+    try {
+      const currentStored = await getStoredSettings();
+      storedConnected = typeof currentStored.connected === "boolean" ? currentStored.connected : null;
+    } catch (err) {
+      console.warn("[popup] Stored connection state unavailable:", err);
+    }
+
+    if (storedConnected === false) {
+      setConnected(false);
+    } else {
+      await connectCurrentTab();
+    }
   }
+  
+  // Attach tooltip listeners after DOM is ready
+  attachTooltipListeners();
 }
 
 void initializePopup();
