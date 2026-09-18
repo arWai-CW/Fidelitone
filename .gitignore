@@ -5,3 +5,5 @@ dist/
 .playwright-mcp
 .zcode
 src/wasm/build/
+.agents/
+skills-lock.json
