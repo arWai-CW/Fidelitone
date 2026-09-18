@@ -1,4 +1,4 @@
-# Pitch Transpose (Fidelitone)
+# Fidelitone
 
 Real-time audio pitch transposition for Chrome tabs.
 

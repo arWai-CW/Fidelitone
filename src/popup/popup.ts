@@ -1,28 +1,11 @@
-// popup controller — pitch slider, bypass toggle, tab title, connection state
+// popup controller - connection state, pitch controls, engine selection, and processing mode
 
-const slider = document.getElementById("pitchSlider") as HTMLInputElement;
-const display = document.getElementById("pitchValue") as HTMLDivElement;
-const bypassBtn = document.getElementById("bypassBtn") as HTMLButtonElement;
-const connectBtn = document.getElementById("connectBtn") as HTMLButtonElement;
-const errorMsg = document.getElementById("errorMsg") as HTMLDivElement;
-const tabTitle = document.getElementById("tabTitle") as HTMLDivElement;
-const snapCheckbox = document.getElementById("snapCheckbox") as HTMLInputElement;
-const formantCheckbox = document.getElementById("formantCheckbox") as HTMLInputElement;
-const accompanimentCheckbox = document.getElementById("accompanimentCheckbox") as HTMLInputElement;
+type Engine = "signalsmith" | "rubberband";
+type ConnectionState = "disconnected" | "connecting" | "connected" | "lost";
 
-function formatSemitones(val: number): string {
-  const sign = val >= 0 ? "+" : "";
-  return `${sign}${val.toFixed(2)}`;
-}
-
-function showError(msg: string) {
-  errorMsg.textContent = msg;
-  errorMsg.classList.add("visible");
-}
-
-function clearError() {
-  errorMsg.classList.remove("visible");
-  errorMsg.textContent = "";
+interface EngineAvailability {
+  signalsmith: boolean;
+  rubberband: boolean;
 }
 
 interface CaptureState {
@@ -32,9 +15,11 @@ interface CaptureState {
   bypass: boolean;
   preserveFormants: boolean;
   accompanimentMode: boolean;
-  engine?: "rubberband" | "signalsmith";
+  engine?: Engine;
+  selectedEngine?: Engine;
   route?: string;
   captureLost?: boolean;
+  engineAvailability?: EngineAvailability;
 }
 
 interface RuntimeResponse {
@@ -46,29 +31,168 @@ interface RuntimeResponse {
 
 type StoredSettings = Partial<CaptureState> & {
   snapToInteger?: boolean;
+  engine?: Engine;
 };
 
-function isEngine(value: unknown): value is "rubberband" | "signalsmith" {
-  return value === "rubberband" || value === "signalsmith";
+const PITCH_MIN = -12;
+const PITCH_MAX = 12;
+const ACCOMPANIMENT_COMMAND_TIMEOUT_MS = 25000;
+
+function getElement<T extends HTMLElement>(id: string): T {
+  const element = document.getElementById(id);
+  if (!element) throw new Error(`Missing popup element: ${id}`);
+  return element as T;
 }
+
+const body = document.body;
+const tabTitle = getElement<HTMLDivElement>("tabTitle");
+const connectionText = getElement<HTMLSpanElement>("connectionText");
+const connectionHeadline = getElement<HTMLElement>("connectionHeadline");
+const connectionDetail = getElement<HTMLSpanElement>("connectionDetail");
+const connectBtn = getElement<HTMLButtonElement>("connectBtn");
+const errorMsg = getElement<HTMLDivElement>("errorMsg");
+const pitchNumber = getElement<HTMLSpanElement>("pitchNumber");
+const pitchSlider = getElement<HTMLInputElement>("pitchSlider");
+const pitchDown = getElement<HTMLButtonElement>("pitchDown");
+const pitchUp = getElement<HTMLButtonElement>("pitchUp");
+const snapCheckbox = getElement<HTMLInputElement>("snapCheckbox");
+const formantCheckbox = getElement<HTMLInputElement>("formantCheckbox");
+const accompanimentCheckbox = getElement<HTMLInputElement>("accompanimentCheckbox");
+const routeBadge = getElement<HTMLSpanElement>("routeBadge");
+const engineNote = getElement<HTMLParagraphElement>("engineNote");
+const engineSignalsmith = getElement<HTMLButtonElement>("engineSignalsmith");
+const engineRubberband = getElement<HTMLButtonElement>("engineRubberband");
+const signalsmithStatus = getElement<HTMLSpanElement>("signalsmithStatus");
+const rubberbandStatus = getElement<HTMLSpanElement>("rubberbandStatus");
+const activeMode = getElement<HTMLButtonElement>("activeMode");
+const bypassMode = getElement<HTMLButtonElement>("bypassMode");
+const modeNote = getElement<HTMLParagraphElement>("modeNote");
 
 let connected = false;
 let connecting = false;
-let selectedEngine: "signalsmith" | "rubberband" = "rubberband";
-// Accompaniment startup may wait for two AudioWorklet handshakes while other engines are active.
-const ACCOMPANIMENT_COMMAND_TIMEOUT_MS = 25000;
+let captureLost = false;
+let isBypassed = false;
+let selectedEngine: Engine = "rubberband";
+let currentRoute: string | null = null;
+let engineAvailability: EngineAvailability = {
+  signalsmith: false,
+  rubberband: false,
+};
+
+function isEngine(value: unknown): value is Engine {
+  return value === "rubberband" || value === "signalsmith";
+}
+
+function isProcessingLocked(): boolean {
+  return !connected || connecting || captureLost;
+}
+
+function clampPitch(value: number): number {
+  return Math.min(PITCH_MAX, Math.max(PITCH_MIN, value));
+}
+
+function roundPitch(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function formatSemitones(value: number): string {
+  const rounded = roundPitch(value);
+  const sign = rounded >= 0 ? "+" : "";
+  return `${sign}${rounded.toFixed(2)}`;
+}
+
+function getPitch(): number {
+  const value = Number.parseFloat(pitchSlider.value);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function getPitchStep(): number {
+  return snapCheckbox.checked ? 1 : 0.01;
+}
+
+function updatePitchDisplay(value: number) {
+  pitchNumber.textContent = formatSemitones(value);
+  pitchSlider.setAttribute("aria-valuetext", `${formatSemitones(value)} semitones`);
+}
+
+function updateStepButtons() {
+  const value = getPitch();
+  pitchDown.disabled = value <= PITCH_MIN;
+  pitchUp.disabled = value >= PITCH_MAX;
+}
+
+function refreshControlAvailability() {
+  const locked = !connected || connecting || captureLost;
+  document.querySelectorAll<HTMLElement>(".control-lock").forEach((element) => {
+    element.classList.toggle("is-disabled", locked);
+    element.setAttribute("aria-disabled", String(locked));
+  });
+
+  pitchSlider.disabled = locked;
+  pitchDown.disabled = locked || getPitch() <= PITCH_MIN;
+  pitchUp.disabled = locked || getPitch() >= PITCH_MAX;
+  snapCheckbox.disabled = locked;
+  formantCheckbox.disabled = locked;
+  accompanimentCheckbox.disabled = locked;
+  activeMode.disabled = locked;
+  bypassMode.disabled = locked;
+
+  const accompanimentLocksRubberband = accompanimentCheckbox.checked;
+  engineSignalsmith.disabled = locked;
+  engineRubberband.disabled = locked || accompanimentLocksRubberband || !engineAvailability.rubberband;
+
+  renderEngineState();
+}
+
+function renderConnectionState() {
+  const state: ConnectionState = connecting ? "connecting" : captureLost ? "lost" : connected ? "connected" : "disconnected";
+  body.dataset.connectionState = state;
+
+  if (state === "connecting") {
+    connectionText.textContent = "連線中";
+    connectionHeadline.textContent = "正在建立音訊通道";
+    connectionDetail.textContent = "請不要關閉目前分頁";
+    connectBtn.textContent = "連線中";
+  } else if (state === "connected") {
+    connectionText.textContent = "已連線";
+    connectionHeadline.textContent = "音訊通道已建立";
+    connectionDetail.textContent = "目前分頁音訊正在處理";
+    connectBtn.textContent = "停止";
+  } else if (state === "lost") {
+    connectionText.textContent = "連線中斷";
+    connectionHeadline.textContent = "音訊通道已中斷";
+    connectionDetail.textContent = "重新連線後可繼續處理";
+    connectBtn.textContent = "重新連線";
+  } else {
+    connectionText.textContent = "尚未連線";
+    connectionHeadline.textContent = "等待開始";
+    connectionDetail.textContent = "開啟分頁音訊後會自動連線";
+    connectBtn.textContent = "立即連線";
+  }
+
+  connectBtn.disabled = connecting;
+  connectBtn.setAttribute("aria-busy", String(connecting));
+  refreshControlAvailability();
+}
+
+function showError(message: string, markLost = false) {
+  errorMsg.textContent = message;
+  errorMsg.classList.add("visible");
+  if (markLost) {
+    captureLost = true;
+    renderConnectionState();
+  }
+}
+
+function clearError() {
+  errorMsg.textContent = "";
+  errorMsg.classList.remove("visible");
+}
 
 function setConnected(nextConnected: boolean) {
   connected = nextConnected;
-  if (connected) {
-    document.body.classList.remove("disabled");
-    connectBtn.textContent = "Disconnect";
-    connectBtn.classList.add("connected");
-  } else {
-    document.body.classList.add("disabled");
-    connectBtn.textContent = "Connect";
-    connectBtn.classList.remove("connected");
-  }
+  if (!connected) captureLost = false;
+  renderConnectionState();
 }
 
 function sendMessage<T extends RuntimeResponse = RuntimeResponse>(
@@ -125,14 +249,22 @@ async function sendSafe(
 }
 
 function storageGet<T>(keys: string[]): Promise<T> {
-  return new Promise<T>((resolve) => {
-    chrome.storage.local.get(keys, (data) => resolve(data as T));
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get(keys, (data) => {
+      const err = chrome.runtime.lastError;
+      if (err) reject(new Error(err.message));
+      else resolve(data as T);
+    });
   });
 }
 
 function storageSet(values: Record<string, unknown>): Promise<void> {
-  return new Promise((resolve) => {
-    chrome.storage.local.set(values, () => resolve());
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set(values, () => {
+      const err = chrome.runtime.lastError;
+      if (err) reject(new Error(err.message));
+      else resolve();
+    });
   });
 }
 
@@ -144,57 +276,129 @@ async function getStoredSettings(): Promise<StoredSettings> {
     "preserveFormants",
     "accompanimentMode",
     "snapToInteger",
+    "engine",
   ]);
 }
 
-function updatePitchDisplay(val: number) {
-  display.innerHTML = `${formatSemitones(val)}<small>st</small>`;
+function getRouteLabel(route: string | null): string {
+  if (!route) return "待命";
+  if (route === "bypass") return "旁路";
+  if (route === "accompaniment") return "伴奏";
+  if (route === "passthrough") return "直通";
+  if (route === "signalsmith") return "Signalsmith";
+  if (route === "rubberband") return "RubberBand";
+  return route;
+}
+
+function renderEngineState() {
+  const accompanimentLocksRubberband = accompanimentCheckbox.checked;
+  const engines: Array<[HTMLButtonElement, HTMLSpanElement, Engine]> = [
+    [engineSignalsmith, signalsmithStatus, "signalsmith"],
+    [engineRubberband, rubberbandStatus, "rubberband"],
+  ];
+
+  for (const [button, status, engine] of engines) {
+    const selected = engine === selectedEngine;
+    const available = engineAvailability[engine];
+    const fixedForAccompaniment = accompanimentLocksRubberband && engine === "rubberband";
+    button.classList.toggle("is-selected", selected);
+    button.setAttribute("aria-checked", String(selected));
+    button.disabled = !connected || connecting || captureLost || fixedForAccompaniment || (engine === "rubberband" && !available);
+
+    if (!connected || connecting || captureLost) {
+      status.textContent = "待命";
+    } else if (fixedForAccompaniment) {
+      status.textContent = "固定高頻";
+    } else if (selected) {
+      status.textContent = "使用中";
+    } else if (available) {
+      status.textContent = "已就緒";
+    } else if (engine === "signalsmith") {
+      status.textContent = "待命";
+    } else {
+      status.textContent = "不可用";
+    }
+  }
+
+  routeBadge.textContent = getRouteLabel(currentRoute);
+  if (accompanimentCheckbox.checked) {
+    engineNote.textContent = "伴奏模式固定使用 Signalsmith 高頻";
+  } else if (!connected) {
+    engineNote.textContent = "連線後可切換處理引擎";
+  } else {
+    engineNote.textContent = `目前路由：${getRouteLabel(currentRoute)}`;
+  }
+}
+
+function renderModeState() {
+  activeMode.classList.toggle("is-selected", !isBypassed);
+  bypassMode.classList.toggle("is-selected", isBypassed);
+  activeMode.setAttribute("aria-checked", String(!isBypassed));
+  bypassMode.setAttribute("aria-checked", String(isBypassed));
+  modeNote.textContent = isBypassed ? "原始分頁音訊直通" : "音訊會經過目前引擎";
 }
 
 function applySnap(snap: boolean) {
+  snapCheckbox.checked = snap;
+  pitchSlider.step = snap ? "1" : "0.01";
   if (snap) {
-    slider.step = "1";
-    const rounded = Math.round(parseFloat(slider.value));
-    slider.value = String(rounded);
+    const rounded = Math.round(getPitch());
+    pitchSlider.value = String(rounded);
     updatePitchDisplay(rounded);
-  } else {
-    slider.step = "0.01";
   }
+  updateStepButtons();
 }
 
 function applyStoredUi(data: StoredSettings) {
-  if (typeof data.pitch === "number") {
-    slider.value = String(data.pitch);
-    updatePitchDisplay(data.pitch);
-  }
+  const pitch = typeof data.pitch === "number" ? clampPitch(data.pitch) : 0;
+  pitchSlider.value = String(pitch);
+  updatePitchDisplay(pitch);
 
-  const bypassed = data.bypass === true;
-  bypassBtn.classList.toggle("bypassed", bypassed);
-  bypassBtn.textContent = bypassed ? "Bypassed" : "Active";
-
-  const snap = data.snapToInteger !== false;
-  snapCheckbox.checked = snap;
-  applySnap(snap);
-
+  isBypassed = data.bypass === true;
+  applySnap(data.snapToInteger !== false);
   formantCheckbox.checked = data.preserveFormants === true;
   accompanimentCheckbox.checked = data.accompanimentMode === true;
-  selectEngineButton(selectedEngine);
+  selectedEngine = isEngine(data.engine) ? data.engine : "rubberband";
+
+  renderEngineState();
+  renderModeState();
+  refreshControlAvailability();
 }
 
-async function getCaptureState(): Promise<CaptureState | null> {
-  const response = await sendMessage<{ ok?: boolean; ready?: boolean; state?: CaptureState; error?: string }>({ type: "GET_STATE" });
-  if (response?.ok && response.state) return response.state;
-  return null;
+function applyLiveState(state: CaptureState) {
+  selectedEngine = isEngine(state.selectedEngine) ? state.selectedEngine : isEngine(state.engine) ? state.engine : selectedEngine;
+  currentRoute = state.route ?? null;
+  captureLost = state.captureLost === true;
+  isBypassed = state.bypass === true;
+  engineAvailability = state.engineAvailability ?? {
+    signalsmith: selectedEngine === "signalsmith",
+    rubberband: selectedEngine === "rubberband",
+  };
+
+  const pitch = typeof state.pitch === "number" ? clampPitch(state.pitch) : 0;
+  pitchSlider.value = String(pitch);
+  updatePitchDisplay(pitch);
+  formantCheckbox.checked = state.preserveFormants === true;
+  accompanimentCheckbox.checked = state.accompanimentMode === true;
+
+  renderEngineState();
+  renderModeState();
+  renderConnectionState();
 }
 
-async function restoreCaptureSettings(data: Partial<CaptureState>) {
+async function restoreStoredSettings(): Promise<void> {
+  const stored = await getStoredSettings();
   const commands: Array<Record<string, unknown>> = [];
-  if (typeof data.pitch === "number") {
-    commands.push({ type: "SET_PITCH", value: { semitones: data.pitch } });
+
+  if (typeof stored.pitch === "number") {
+    commands.push({ type: "SET_PITCH", value: { semitones: clampPitch(stored.pitch) } });
   }
-  commands.push({ type: "SET_BYPASS", value: { active: data.bypass === true } });
-  commands.push({ type: "SET_FORMANTS", value: { preserve: data.preserveFormants === true } });
-  commands.push({ type: "SET_ACCOMPANIMENT", value: { enabled: data.accompanimentMode === true } });
+  commands.push({ type: "SET_BYPASS", value: { active: stored.bypass === true } });
+  commands.push({ type: "SET_FORMANTS", value: { preserve: stored.preserveFormants === true } });
+  if (isEngine(stored.engine) && stored.accompanimentMode !== true) {
+    commands.push({ type: "SET_ENGINE", engine: stored.engine });
+  }
+  commands.push({ type: "SET_ACCOMPANIMENT", value: { enabled: stored.accompanimentMode === true } });
 
   for (const command of commands) {
     const response = await sendMessage<RuntimeResponse>(
@@ -204,6 +408,25 @@ async function restoreCaptureSettings(data: Partial<CaptureState>) {
     );
     if (response?.ok !== true) {
       throw new Error(response?.error ?? "Unable to restore audio settings");
+    }
+  }
+}
+
+async function updatePitch(value: number, send = true): Promise<void> {
+  const previousValue = getPitch();
+  const nextValue = clampPitch(roundPitch(value));
+  pitchSlider.value = String(nextValue);
+  updatePitchDisplay(nextValue);
+  updateStepButtons();
+  await storageSet({ pitch: nextValue });
+
+  if (send && connected && !connecting && !captureLost) {
+    const ok = await sendSafe({ type: "SET_PITCH", value: { semitones: nextValue } }, false);
+    if (!ok) {
+      pitchSlider.value = String(previousValue);
+      updatePitchDisplay(previousValue);
+      updateStepButtons();
+      await storageSet({ pitch: previousValue });
     }
   }
 }
@@ -221,11 +444,25 @@ async function ensureOffscreen(): Promise<void> {
   });
 }
 
+async function getCaptureState(): Promise<CaptureState | null> {
+  const response = await sendMessage<{ ok?: boolean; ready?: boolean; state?: CaptureState; error?: string }>({ type: "GET_STATE" });
+  if (response?.ok && response.state) return response.state;
+  return null;
+}
+
+async function refreshRouteState(): Promise<void> {
+  const state = await getCaptureState();
+  if (!state) return;
+  currentRoute = state.route ?? currentRoute;
+  engineAvailability = state.engineAvailability ?? engineAvailability;
+  selectedEngine = isEngine(state.selectedEngine) ? state.selectedEngine : selectedEngine;
+  renderEngineState();
+}
+
 async function connectCurrentTab(): Promise<boolean> {
   if (connecting) return false;
   connecting = true;
-  connectBtn.disabled = true;
-  connectBtn.textContent = "Connecting…";
+  renderConnectionState();
   clearError();
 
   try {
@@ -233,7 +470,7 @@ async function connectCurrentTab(): Promise<boolean> {
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) {
-      showError("No active tab found");
+      showError("找不到目前分頁");
       return false;
     }
 
@@ -247,32 +484,27 @@ async function connectCurrentTab(): Promise<boolean> {
     setConnected(true);
     await storageSet({ connected: true });
     try {
-      const state = await getCaptureState();
-      if (!state) throw new Error("Audio service did not report connection state");
-      if (isEngine(state.engine)) selectEngineButton(state.engine);
-      await restoreCaptureSettings(state);
-      return true;
+      await restoreStoredSettings();
     } catch (err) {
       showError(err instanceof Error ? err.message : String(err));
-      connecting = false;
-      await disconnectCapture();
-      return false;
     }
+
+    const state = await getCaptureState();
+    if (state) applyLiveState(state);
+    return true;
   } catch (err) {
     showError(err instanceof Error ? err.message : String(err));
     return false;
   } finally {
     connecting = false;
-    connectBtn.disabled = false;
-    if (!connected) connectBtn.textContent = "Connect";
+    renderConnectionState();
   }
 }
 
 async function disconnectCapture(): Promise<boolean> {
   if (connecting) return false;
   connecting = true;
-  connectBtn.disabled = true;
-  connectBtn.textContent = "Disconnecting…";
+  renderConnectionState();
   clearError();
 
   try {
@@ -281,6 +513,7 @@ async function disconnectCapture(): Promise<boolean> {
       showError(response?.error ?? "Unable to stop capture");
       return false;
     }
+    captureLost = false;
     setConnected(false);
     await storageSet({ connected: false });
     return true;
@@ -289,53 +522,69 @@ async function disconnectCapture(): Promise<boolean> {
     return false;
   } finally {
     connecting = false;
-    connectBtn.disabled = false;
-    if (!connected) connectBtn.textContent = "Connect";
+    renderConnectionState();
   }
 }
 
 async function syncConnectionState(): Promise<CaptureState | null> {
   const response = await sendMessage<{ ok?: boolean; ready?: boolean; state?: CaptureState; error?: string }>({ type: "GET_STATE" });
-  if (!response?.ok || !response.state) return null;
-  if (response.ready === false) return null;
+  if (!response?.ok || !response.state || response.ready === false) return null;
 
-  if (isEngine(response.state.engine)) {
-    selectEngineButton(response.state.engine);
-  }
+  applyLiveState(response.state);
   setConnected(response.state.connected);
   await storageSet({ connected: response.state.connected });
-  await restoreCaptureSettings(response.state);
   return response.state;
 }
 
-// --- Snap to integer logic ---
 snapCheckbox.addEventListener("change", () => {
+  if (isProcessingLocked()) return;
   const snap = snapCheckbox.checked;
   applySnap(snap);
-  void storageSet({ snapToInteger: snap });
+  void storageSet({ snapToInteger: snap }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
+  void updatePitch(getPitch(), true).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
 });
 
-// --- Preserve Formants toggle ---
 formantCheckbox.addEventListener("change", async () => {
+  if (isProcessingLocked()) return;
   const preserve = formantCheckbox.checked;
-  await storageSet({ preserveFormants: preserve });
+  try {
+    await storageSet({ preserveFormants: preserve });
+  } catch (err) {
+    showError(err instanceof Error ? err.message : String(err));
+    formantCheckbox.checked = !preserve;
+    return;
+  }
+
   if (!(await sendSafe({ type: "SET_FORMANTS", value: { preserve } }))) {
     formantCheckbox.checked = !preserve;
-    await storageSet({ preserveFormants: !preserve });
+    await storageSet({ preserveFormants: !preserve }).catch(() => undefined);
   }
 });
 
-// --- Accompaniment mode toggle ---
 accompanimentCheckbox.addEventListener("change", async () => {
+  if (isProcessingLocked()) return;
   const enabled = accompanimentCheckbox.checked;
-  await storageSet({ accompanimentMode: enabled });
+  try {
+    await storageSet({ accompanimentMode: enabled });
+  } catch (err) {
+    showError(err instanceof Error ? err.message : String(err));
+    accompanimentCheckbox.checked = !enabled;
+    return;
+  }
+
+  renderEngineState();
+  refreshControlAvailability();
+
   if (!(await sendSafe({ type: "SET_ACCOMPANIMENT", value: { enabled } }, true, ACCOMPANIMENT_COMMAND_TIMEOUT_MS))) {
     accompanimentCheckbox.checked = !enabled;
-    await storageSet({ accompanimentMode: !enabled });
+    await storageSet({ accompanimentMode: !enabled }).catch(() => undefined);
+    renderEngineState();
+    refreshControlAvailability();
+  } else {
+    await refreshRouteState();
   }
 });
 
-// --- Connect / Disconnect button ---
 connectBtn.addEventListener("click", async () => {
   if (connected) {
     await disconnectCapture();
@@ -344,84 +593,102 @@ connectBtn.addEventListener("click", async () => {
   }
 });
 
-// --- Slider ---
-slider.addEventListener("input", async () => {
-  const val = parseFloat(slider.value);
-  const previousValue = slider.value;
-  updatePitchDisplay(val);
-  await storageSet({ pitch: val });
-  if (!(await sendSafe({ type: "SET_PITCH", value: { semitones: val } }, false)) && connected) {
-    slider.value = previousValue;
-    updatePitchDisplay(parseFloat(previousValue));
-    await storageSet({ pitch: parseFloat(previousValue) });
-  }
+pitchSlider.addEventListener("input", () => {
+  if (isProcessingLocked()) return;
+  void updatePitch(getPitch(), true).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
 });
 
-// --- Debug mode (A/B comparison) ---
-let debugMode = false;
-const abContainer = document.createElement("div");
-abContainer.id = "abContainer";
-abContainer.style.cssText = "display:none;margin-top:8px;padding:8px;background:#1a1a2e;border:1px solid #2a2a4a;border-radius:6px;";
-abContainer.innerHTML = `
-  <div style="font-size:11px;color:#888;margin-bottom:6px;">A/B Engine Comparison</div>
-  <div style="display:flex;gap:6px;">
-    <button id="btnA" class="ab-btn" style="flex:1;padding:6px;font-size:12px;border:1px solid #2a2a4a;border-radius:4px;cursor:pointer;background:#1b4332;color:#40c057;">A (Signalsmith)</button>
-    <button id="btnB" class="ab-btn" style="flex:1;padding:6px;font-size:12px;border:1px solid #2a2a4a;border-radius:4px;cursor:pointer;background:#1b2a4a;color:#6c9cff;">B (RB LiveShifter)</button>
-  </div>
-`;
-bypassBtn.parentNode?.insertBefore(abContainer, bypassBtn.nextSibling);
+pitchDown.addEventListener("click", () => {
+  if (isProcessingLocked()) return;
+  void updatePitch(getPitch() - getPitchStep(), true).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
+});
 
-const btnA = document.getElementById("btnA") as HTMLButtonElement;
-const btnB = document.getElementById("btnB") as HTMLButtonElement;
+pitchUp.addEventListener("click", () => {
+  if (isProcessingLocked()) return;
+  void updatePitch(getPitch() + getPitchStep(), true).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
+});
 
-function selectEngineButton(engine: "signalsmith" | "rubberband") {
-  selectedEngine = engine;
-  btnA.style.background = engine === "signalsmith" ? "#1b4332" : "#1a1a2e";
-  btnA.style.color = engine === "signalsmith" ? "#40c057" : "#666";
-  btnB.style.background = engine === "rubberband" ? "#1b2a4a" : "#1a1a2e";
-  btnB.style.color = engine === "rubberband" ? "#6c9cff" : "#666";
-}
+engineSignalsmith.addEventListener("click", async () => {
+  if (isProcessingLocked()) return;
+  const previousEngine = selectedEngine;
+  selectedEngine = "signalsmith";
+  renderEngineState();
+  refreshControlAvailability();
+  await storageSet({ engine: selectedEngine }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
 
-btnA.addEventListener("click", async () => {
-  selectEngineButton("signalsmith");
   if (!(await sendSafe({ type: "SET_ENGINE", engine: "signalsmith" }))) {
-    selectEngineButton(selectedEngine === "signalsmith" ? "rubberband" : "signalsmith");
+    selectedEngine = previousEngine;
+    renderEngineState();
+    refreshControlAvailability();
+    await storageSet({ engine: selectedEngine }).catch(() => undefined);
+  } else {
+    await refreshRouteState();
   }
 });
 
-btnB.addEventListener("click", async () => {
-  selectEngineButton("rubberband");
+engineRubberband.addEventListener("click", async () => {
+  if (isProcessingLocked()) return;
+  const previousEngine = selectedEngine;
+  selectedEngine = "rubberband";
+  renderEngineState();
+  refreshControlAvailability();
+  await storageSet({ engine: selectedEngine }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
+
   if (!(await sendSafe({ type: "SET_ENGINE", engine: "rubberband" }))) {
-    selectEngineButton(selectedEngine === "rubberband" ? "signalsmith" : "rubberband");
+    selectedEngine = previousEngine;
+    renderEngineState();
+    refreshControlAvailability();
+    await storageSet({ engine: selectedEngine }).catch(() => undefined);
+  } else {
+    await refreshRouteState();
   }
 });
 
-// --- Bypass toggle (with Shift+click for debug mode) ---
-bypassBtn.addEventListener("click", async (e) => {
-  if (e.shiftKey) {
-    debugMode = !debugMode;
-    abContainer.style.display = debugMode ? "block" : "none";
-    console.log(`[A/B] Debug mode ${debugMode ? "ON" : "OFF"}`);
-    return;
+activeMode.addEventListener("click", async () => {
+  if (isProcessingLocked()) return;
+  const previousBypass = isBypassed;
+  isBypassed = false;
+  renderModeState();
+  await storageSet({ bypass: false }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
+
+  if (!(await sendSafe({ type: "SET_BYPASS", value: { active: false } }))) {
+    isBypassed = previousBypass;
+    renderModeState();
+    await storageSet({ bypass: previousBypass }).catch(() => undefined);
+  } else {
+    await refreshRouteState();
   }
-  const isBypassed = bypassBtn.classList.toggle("bypassed");
-  const previousText = bypassBtn.textContent;
-  bypassBtn.textContent = isBypassed ? "Bypassed" : "Active";
-  await storageSet({ bypass: isBypassed });
-  if (!(await sendSafe({ type: "SET_BYPASS", value: { active: isBypassed } }))) {
-    bypassBtn.classList.toggle("bypassed");
-    bypassBtn.textContent = previousText;
-    await storageSet({ bypass: !isBypassed });
+});
+
+bypassMode.addEventListener("click", async () => {
+  if (isProcessingLocked()) return;
+  const previousBypass = isBypassed;
+  isBypassed = true;
+  renderModeState();
+  await storageSet({ bypass: true }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
+
+  if (!(await sendSafe({ type: "SET_BYPASS", value: { active: true } }))) {
+    isBypassed = previousBypass;
+    renderModeState();
+    await storageSet({ bypass: previousBypass }).catch(() => undefined);
+  } else {
+    await refreshRouteState();
   }
 });
 
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   const title = tabs[0]?.title ?? "No active tab";
   tabTitle.textContent = title;
+  tabTitle.title = title;
 });
 
 async function initializePopup() {
-  const stored = await getStoredSettings();
+  let stored: StoredSettings = {};
+  try {
+    stored = await getStoredSettings();
+  } catch (err) {
+    showError(err instanceof Error ? err.message : String(err));
+  }
   applyStoredUi(stored);
 
   let liveState: CaptureState | null = null;
@@ -432,11 +699,21 @@ async function initializePopup() {
     console.warn("[popup] State synchronization failed:", err);
   }
 
-  const currentStored = await getStoredSettings();
-  const storedConnected = typeof currentStored.connected === "boolean" ? currentStored.connected : null;
   if (liveState) {
+    applyLiveState(liveState);
     setConnected(liveState.connected);
-  } else if (storedConnected === false) {
+    return;
+  }
+
+  let storedConnected: boolean | null = null;
+  try {
+    const currentStored = await getStoredSettings();
+    storedConnected = typeof currentStored.connected === "boolean" ? currentStored.connected : null;
+  } catch (err) {
+    console.warn("[popup] Stored connection state unavailable:", err);
+  }
+
+  if (storedConnected === false) {
     setConnected(false);
   } else {
     await connectCurrentTab();

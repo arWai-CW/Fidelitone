@@ -28,6 +28,9 @@ export interface StretchNode extends AudioWorkletNode {
     semitones?: number;
     rate?: number;
     output?: number;
+    formantSemitones?: number;
+    formantCompensation?: boolean;
+    formantBaseHz?: number;
   }): Promise<void>;
 }
 
@@ -90,6 +93,27 @@ export async function setSignalsmithPitch(
     output: ctx.currentTime + Math.max(0.05, latency),
   });
   console.log("[signalsmith-fallback] Pitch →", semitones, "semitones");
+}
+
+/**
+ * Set pitch with formant preservation on Signalsmith engine.
+ */
+export async function setSignalsmithPitchWithFormants(
+  engine: SignalsmithEngine | null,
+  semitones: number,
+  preserveFormants: boolean,
+  ctx: AudioContext
+): Promise<void> {
+  if (!engine?.ready) return;
+  const latency = await engine.node.latency();
+  await engine.node.schedule({
+    semitones,
+    formantSemitones: 0,
+    formantCompensation: preserveFormants,
+    formantBaseHz: 0, // 0 = auto-detect
+    output: ctx.currentTime + Math.max(0.05, latency),
+  });
+  console.log("[signalsmith-fallback] Pitch →", semitones, "semitones, formant preservation:", preserveFormants);
 }
 
 /**
