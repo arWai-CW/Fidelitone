@@ -1,7 +1,9 @@
 node_modules/
 dist/
+dist.zip
 .DS_Store
 .omo
+.codegraph
 .playwright-mcp
 .zcode
 src/wasm/build/
