@@ -1,162 +1,238 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-Hant">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Fidelitone</title>
-    <link rel="stylesheet" href="./popup.css" />
-  </head>
-  <body data-connection-state="disconnected">
-    <div class="popup-shell">
-      <header class="app-header">
-        <div>
-          <div class="brand">Fidelitone</div>
-          <div class="tab-title" id="tabTitle" title="No active tab">No active tab</div>
-        </div>
-        <div class="connection-summary" id="connectionSummary" role="status" aria-live="polite">
-          <span class="status-indicator" aria-hidden="true"></span>
-          <span id="connectionText">尚未連線</span>
-        </div>
-      </header>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Fidelitone</title>
+		<link rel="stylesheet" href="./popup.css" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+			rel="stylesheet"
+		/>
+	</head>
+	<body data-connection-state="disconnected">
+		<div class="popup-shell">
+			<header class="app-header reveal">
+				<div class="brand-wrap">
+					<div class="brand">Fidelitone</div>
+					<div class="tab-title" id="tabTitle" title="No active tab">No active tab</div>
+				</div>
+				<div class="connection-summary" id="connectionSummary" role="status" aria-live="polite">
+					<span class="status-indicator" aria-hidden="true"></span>
+					<span id="connectionText">尚未連線</span>
+				</div>
+			</header>
 
-      <section class="connection-strip" aria-label="音訊連線">
-        <div class="connection-copy">
-          <strong id="connectionHeadline">等待開始</strong>
-          <span id="connectionDetail">開啟分頁音訊後會自動連線</span>
-        </div>
-        <div class="connection-actions">
-          <button
-            class="icon-button connection-toggle"
-            id="connectBtn"
-            type="button"
-            aria-label="連線音訊"
-            data-tooltip="連線音訊"
-          >
-            <svg class="icon icon-power" viewBox="0 0 49.548 49.549" aria-hidden="true" fill="currentColor">
-              <path d="M30.203,4.387v4.385c7.653,2.332,13.238,9.451,13.238,17.857c0,10.293-8.373,18.667-18.667,18.667S6.106,36.922,6.106,26.629c0-8.405,5.585-15.525,13.238-17.857V4.387C9.323,6.835,1.855,15.866,1.855,26.629c0,12.639,10.281,22.92,22.919,22.92s22.92-10.281,22.92-22.92C47.694,15.865,40.224,6.835,30.203,4.387z"/>
-              <path d="M24.776,27.225c-1.41,0-2.554-1.145-2.554-2.555V2.554c0-1.41,1.144-2.554,2.554-2.554c1.41,0,2.554,1.144,2.554,2.554V24.67C27.33,26.08,26.186,27.225,24.776,27.225z"/>
-            </svg>
-            <svg class="icon icon-loading" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4" stroke-linecap="round"/>
-            </svg>
-          </button>
-          <button
-            class="icon-button bypass-toggle"
-            id="bypassBtn"
-            type="button"
-            aria-label="啟用旁路"
-            aria-pressed="false"
-            data-tooltip="啟用旁路 (原始音訊直通)"
-          >
-            <svg class="icon icon-bypass" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
-              <path d="M20 16L23 13L20 10V12H18.748C17.8599 8.54955 14.7277 6 11 6C7.27232 6 4.14012 8.54955 3.25203 12H1V14H5C5 10.6863 7.68629 8 11 8C14.3137 8 17 10.6863 17 14H20V16Z" />
-              <path d="M15 14C15 16.2091 13.2092 18 11 18C8.7909 18 7.00004 16.2091 7.00004 14C7.00004 11.7909 8.7909 10 11 10C13.2092 10 15 11.7909 15 14Z" />
-            </svg>
-          </button>
-        </div>
-      </section>
+			<section class="connection-strip reveal reveal-delay-1" aria-label="音訊連線">
+				<div class="connection-copy">
+					<strong id="connectionHeadline">等待開始</strong>
+					<span id="connectionDetail">開啟分頁音訊後會自動連線</span>
+				</div>
+				<div class="connection-actions">
+					<button
+						class="icon-button connection-toggle group"
+						id="connectBtn"
+						type="button"
+						aria-label="連線音訊"
+						data-tooltip="連線音訊"
+					>
+						<svg
+							class="icon icon-power icon-button-icon"
+							viewBox="0 0 49.548 49.549"
+							aria-hidden="true"
+							fill="currentColor"
+							stroke="none"
+						>
+							<path
+								d="M30.203,4.387v4.385c7.653,2.332,13.238,9.451,13.238,17.857c0,10.293-8.373,18.667-18.667,18.667S6.106,36.922,6.106,26.629c0-8.405,5.585-15.525,13.238-17.857V4.387C9.323,6.835,1.855,15.866,1.855,26.629c0,12.639,10.281,22.92,22.919,22.92s22.92-10.281,22.92-22.92C47.694,15.865,40.224,6.835,30.203,4.387z"
+							/>
+							<path
+								d="M24.776,27.225c-1.41,0-2.554-1.145-2.554-2.555V2.554c0-1.41,1.144-2.554,2.554-2.554c1.41,0,2.554,1.144,2.554,2.554v24.67C27.33,26.08,26.186,27.225,24.776,27.225z"
+							/>
+						</svg>
+						<svg
+							class="icon icon-loading icon-button-icon"
+							viewBox="0 0 24 24"
+							aria-hidden="true"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.8"
+							stroke-linecap="round"
+						>
+							<circle cx="12" cy="12" r="10" stroke-dasharray="31.4 31.4" />
+						</svg>
+					</button>
+					<button
+						class="icon-button bypass-toggle group"
+						id="bypassBtn"
+						type="button"
+						aria-label="啟用旁路"
+						aria-pressed="false"
+						data-tooltip="啟用旁路 (原始音訊直通)"
+					>
+						<svg
+							class="icon icon-bypass icon-button-icon"
+							viewBox="-0.81 5.90 23.91 12.20"
+							aria-hidden="true"
+							fill="currentColor"
+							stroke="none"
+						>
+							<path
+								d="M20,16L23,13L20,10L20,12L18.748,12C17.86,8.55 14.728,6 11,6C7.272,6 4.14,8.55 3.252,12L-0.71,12L-0.71,14L5,14C5,10.686 7.686,8 11,8C14.314,8 17,10.686 17,14L20,14L20,16Z"
+							/>
+							<path
+								d="M15,14C15,16.209 13.209,18 11,18C8.791,18 7,16.209 7,14C7,11.791 8.791,10 11,10C13.209,10 15,11.791 15,14Z"
+							/>
+						</svg>
+					</button>
+				</div>
+			</section>
 
-      <div class="error-msg" id="errorMsg" role="alert" aria-live="assertive"></div>
+			<div class="error-msg" id="errorMsg" role="alert" aria-live="assertive"></div>
 
-      <main>
-        <section class="panel pitch-panel control-lock" aria-labelledby="pitchHeading">
-          <div class="panel-heading">
-            <h2 id="pitchHeading">音高</h2>
-            <div class="pitch-value-wrap">
-              <output class="pitch-value" id="pitchValue" aria-live="polite">
-                <span id="pitchNumber">+0.00</span><small>st</small>
-              </output>
-              <button
-                class="icon-button pitch-reset"
-                id="pitchReset"
-                type="button"
-                aria-label="重設音高為 0"
-                data-tooltip="重設音高為 0"
-              >
-                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
-                  <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
-                </svg>
-              </button>
-            </div>
-          </div>
+			<main>
+				<section class="panel pitch-panel control-lock reveal reveal-delay-2" aria-labelledby="pitchHeading">
+					<div class="panel-shell">
+						<div class="panel-core">
+							<div class="panel-heading">
+								<h2 id="pitchHeading">音高</h2>
+								<div class="pitch-value-wrap">
+									<output class="pitch-value" id="pitchValue" aria-live="polite">
+										<span id="pitchNumber">+0.00</span><small>st</small>
+									</output>
+									<button
+										class="icon-button pitch-reset"
+										id="pitchReset"
+										type="button"
+										aria-label="重設音高為 0"
+										data-tooltip="重設音高為 0"
+									>
+										<svg
+											class="icon"
+											viewBox="-2.5 -2.5 22 22"
+											aria-hidden="true"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+										>
+											<path
+												d="m12.5 1.5c2.4138473 1.37729434 4 4.02194088 4 7 0 4.418278-3.581722 8-8 8s-8-3.581722-8-8 3.581722-8 8-8"
+											/>
+											<path d="m12.5 5.5v-4h4" />
+										</svg>
+									</button>
+								</div>
+							</div>
 
-          <div class="pitch-control">
-            <button class="step-button" id="pitchDown" type="button" aria-label="降低音高">−</button>
-            <input
-              type="range"
-              id="pitchSlider"
-              min="-12"
-              max="12"
-              step="1"
-              value="0"
-              aria-label="音高調整"
-              aria-valuetext="+0.00 semitones"
-            />
-            <button class="step-button" id="pitchUp" type="button" aria-label="提高音高">+</button>
-          </div>
+							<div class="pitch-control">
+								<button class="step-button" id="pitchDown" type="button" aria-label="降低音高">
+									−
+								</button>
+								<input
+									type="range"
+									id="pitchSlider"
+									min="-12"
+									max="12"
+									step="1"
+									value="0"
+									aria-label="音高調整"
+									aria-valuetext="+0.00 semitones"
+								/>
+								<button class="step-button" id="pitchUp" type="button" aria-label="提高音高">+</button>
+							</div>
 
-          <label class="option-row">
-            <input type="checkbox" id="snapCheckbox" role="switch" checked />
-            <span class="switch" aria-hidden="true"></span>
-            <span class="option-copy">
-              <span class="option-label">半音吸附</span>
-              <span class="option-helper">以整數半音調整</span>
-            </span>
-          </label>
-        </section>
+							<label class="option-row">
+								<input type="checkbox" id="snapCheckbox" role="switch" checked />
+								<span class="switch" aria-hidden="true"></span>
+								<span class="option-copy">
+									<span class="option-label">半音吸附</span>
+									<span class="option-helper">以整數半音調整</span>
+								</span>
+							</label>
+						</div>
+					</div>
+				</section>
 
-        <section class="panel signal-panel control-lock" aria-labelledby="signalHeading">
-          <div class="panel-heading">
-            <h2 id="signalHeading">信號路徑</h2>
-          </div>
+				<section class="panel signal-panel control-lock reveal reveal-delay-3" aria-labelledby="signalHeading">
+					<div class="panel-shell">
+						<div class="panel-core">
+							<div class="panel-heading">
+								<h2 id="signalHeading">信號路徑</h2>
+							</div>
 
-          <p class="engine-desc-line" id="engineDescLine">Signalsmith：人聲/獨奏樂器、高品質時域拉伸　RubberBand：複雜音源/多聲部、頻域處理、共振峰保護</p>
+							<div class="signal-block">
+								<div class="block-label" id="engineHeading">處理引擎</div>
+								<div class="engine-list" id="engineControl" role="radiogroup" aria-label="處理引擎">
+									<button
+										class="engine-item"
+										id="engineSignalsmith"
+										type="button"
+										role="radio"
+										aria-checked="false"
+										data-engine="signalsmith"
+									>
+										<div class="engine-info">
+											<span class="engine-name">Signalsmith Stretch</span>
+											<span class="engine-desc">適合人聲、獨奏樂器、高品質時域拉伸</span>
+										</div>
+									</button>
+									<button
+										class="engine-item"
+										id="engineRubberband"
+										type="button"
+										role="radio"
+										aria-checked="false"
+										data-engine="rubberband"
+									>
+										<div class="engine-info">
+											<span class="engine-name">RubberBand</span>
+											<span class="engine-desc">適合複雜音源、多聲部、頻域處理、共振峰保護</span>
+										</div>
+									</button>
+								</div>
+							</div>
+						</div>
+					</div>
+				</section>
 
-          <div class="signal-block">
-            <div class="block-label" id="engineHeading">處理引擎</div>
-            <div class="engine-list" id="engineControl" role="radiogroup" aria-label="處理引擎">
-              <button class="engine-item" id="engineSignalsmith" type="button" role="radio" aria-checked="false" data-engine="signalsmith">
-                <div class="engine-info">
-                  <span class="engine-name">Signalsmith Stretch</span>
-                  <span class="engine-desc">適合人聲、獨奏樂器、高品質時域拉伸</span>
-                </div>
-              </button>
-              <button class="engine-item" id="engineRubberband" type="button" role="radio" aria-checked="false" data-engine="rubberband">
-                <div class="engine-info">
-                  <span class="engine-name">RubberBand</span>
-                  <span class="engine-desc">適合複雜音源、多聲部、頻域處理、共振峰保護</span>
-                </div>
-              </button>
-            </div>
-            <p class="panel-note" id="engineNote">連線後可切換處理引擎</p>
-          </div>
-        </section>
+				<section
+					class="panel options-panel control-lock reveal reveal-delay-4"
+					aria-labelledby="optionsHeading"
+				>
+					<div class="panel-shell">
+						<div class="panel-core">
+							<h2 id="optionsHeading" class="section-title">進階選項</h2>
+							<label class="option-row">
+								<input type="checkbox" id="formantCheckbox" role="switch" />
+								<span class="switch" aria-hidden="true"></span>
+								<span class="option-copy">
+									<span class="option-label">共振峰保護</span>
+									<span class="option-helper"
+										>保持人聲/樂器音色特徵，防止變調時共振峰位移導致音色改變</span
+									>
+								</span>
+							</label>
 
-        <section class="panel options-panel control-lock" aria-labelledby="optionsHeading">
-          <h2 id="optionsHeading" class="section-title">進階選項</h2>
-          <label class="option-row">
-            <input type="checkbox" id="formantCheckbox" role="switch" />
-            <span class="switch" aria-hidden="true"></span>
-            <span class="option-copy">
-              <span class="option-label">共振峰保護</span>
-              <span class="option-helper">保持人聲/樂器音色特徵，防止變調時共振峰位移導致音色改變</span>
-            </span>
-          </label>
+							<label class="option-row">
+								<input type="checkbox" id="accompanimentCheckbox" role="switch" />
+								<span class="switch" aria-hidden="true"></span>
+								<span class="option-copy">
+									<span class="option-label">伴奏模式</span>
+									<span class="option-helper">低頻重取樣，高頻 Signalsmith</span>
+								</span>
+							</label>
+						</div>
+					</div>
+				</section>
+			</main>
+		</div>
 
-          <label class="option-row">
-            <input type="checkbox" id="accompanimentCheckbox" role="switch" />
-            <span class="switch" aria-hidden="true"></span>
-            <span class="option-copy">
-              <span class="option-label">伴奏模式</span>
-              <span class="option-helper">低頻重取樣，高頻 Signalsmith</span>
-            </span>
-          </label>
-        </section>
-      </main>
-    </div>
+		<div class="tooltip" id="tooltip" role="tooltip" aria-hidden="true"></div>
 
-    <div class="tooltip" id="tooltip" role="tooltip" aria-hidden="true"></div>
-
-    <script type="module" src="./popup.ts"></script>
-  </body>
+		<script type="module" src="./popup.ts"></script>
+	</body>
 </html>

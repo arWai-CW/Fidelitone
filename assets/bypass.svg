@@ -1,5 +1,10 @@
-<?xml version="1.0" encoding="utf-8"?><!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
-<svg fill="#000000" width="800px" height="800px" viewBox="0 0 24 24"  xmlns="http://www.w3.org/2000/svg">
-<path d="M20 16L23 13L20 10V12H18.748C17.8599 8.54955 14.7277 6 11 6C7.27232 6 4.14012 8.54955 3.25203 12H1V14H5C5 10.6863 7.68629 8 11 8C14.3137 8 17 10.6863 17 14H20V16Z" />
-<path d="M15 14C15 16.2091 13.2092 18 11 18C8.7909 18 7.00004 16.2091 7.00004 14C7.00004 11.7909 8.7909 10 11 10C13.2092 10 15 11.7909 15 14Z" />
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 800 800" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
+    <g transform="matrix(33.333333,0,0,33.333333,33.333333,0)">
+        <path d="M20,16L23,13L20,10L20,12L18.748,12C17.86,8.55 14.728,6 11,6C7.272,6 4.14,8.55 3.252,12L-0.71,12L-0.71,14L5,14C5,10.686 7.686,8 11,8C14.314,8 17,10.686 17,14L20,14L20,16Z" style="fill-rule:nonzero;"/>
+    </g>
+    <g transform="matrix(33.333333,0,0,33.333333,33.333333,0)">
+        <path d="M15,14C15,16.209 13.209,18 11,18C8.791,18 7,16.209 7,14C7,11.791 8.791,10 11,10C13.209,10 15,11.791 15,14Z" style="fill-rule:nonzero;"/>
+    </g>
 </svg>

@@ -60,7 +60,6 @@ const pitchReset = getElement<HTMLButtonElement>("pitchReset");
 const snapCheckbox = getElement<HTMLInputElement>("snapCheckbox");
 const formantCheckbox = getElement<HTMLInputElement>("formantCheckbox");
 const accompanimentCheckbox = getElement<HTMLInputElement>("accompanimentCheckbox");
-const engineNote = getElement<HTMLParagraphElement>("engineNote");
 const engineSignalsmith = getElement<HTMLButtonElement>("engineSignalsmith");
 const engineRubberband = getElement<HTMLButtonElement>("engineRubberband");
 const tooltip = getElement<HTMLDivElement>("tooltip");
@@ -308,14 +307,6 @@ function renderEngineState() {
     button.setAttribute("aria-checked", String(selected));
     button.disabled = !connected || connecting || captureLost || fixedForAccompaniment || (engine === "rubberband" && !available);
   }
-
-  if (accompanimentCheckbox.checked) {
-    engineNote.textContent = "伴奏模式固定使用 Signalsmith 高頻";
-  } else if (!connected) {
-    engineNote.textContent = "連線後可切換處理引擎";
-  } else {
-    engineNote.textContent = `目前引擎：${getRouteLabel(currentRoute)}`;
-  }
 }
 
 function updateBypassButtonState() {
@@ -528,20 +519,20 @@ let tooltipHideTimer: number | null = null;
 function showTooltip(element: HTMLElement) {
   const text = element.getAttribute("data-tooltip");
   if (!text) return;
-  
+
   tooltip.textContent = text;
   tooltip.classList.add("visible");
-  
+
   const rect = element.getBoundingClientRect();
   const tooltipRect = tooltip.getBoundingClientRect();
-  
+
   let left = rect.left + rect.width / 2 - tooltipRect.width / 2;
   let top = rect.top - tooltipRect.height - 8;
-  
+
   // Keep tooltip within viewport
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
-  
+
   if (left < 8) left = 8;
   if (left + tooltipRect.width > viewportWidth - 8) left = viewportWidth - tooltipRect.width - 8;
   if (top < 8) {
@@ -551,7 +542,7 @@ function showTooltip(element: HTMLElement) {
     tooltip.style.left = `${left}px`;
     return;
   }
-  
+
   tooltip.style.transform = "translateX(-50%)";
   tooltip.style.top = `${top}px`;
   tooltip.style.left = `${left}px`;
@@ -584,7 +575,7 @@ function attachTooltipListeners() {
     el.addEventListener("focus", () => showTooltip(el));
     el.addEventListener("blur", scheduleHideTooltip);
   });
-  
+
   // Also hide tooltip when clicking elsewhere
   document.addEventListener("click", () => hideTooltip());
 }
@@ -760,7 +751,7 @@ async function initializePopup() {
       await connectCurrentTab();
     }
   }
-  
+
   // Attach tooltip listeners after DOM is ready
   attachTooltipListeners();
 }
