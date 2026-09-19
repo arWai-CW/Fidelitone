@@ -65,6 +65,13 @@ function flatHtmlOutput(): Plugin {
         }
       }
 
+      // Shared DSP modules are imported by plain-JS worklets and must exist beside them.
+      const dspDir = "dist/lib/dsp";
+      if (!existsSync(dspDir)) mkdirSync(dspDir, { recursive: true });
+      for (const name of ["math.js", "math.d.ts"]) {
+        copyFileSync(`src/lib/dsp/${name}`, `${dspDir}/${name}`);
+      }
+
       // Signalsmith embeds its WASM in this self-contained worklet module. Copy
       // it as a static extension asset so the factory can use moduleUrl instead
       // of creating a blob URL at runtime.

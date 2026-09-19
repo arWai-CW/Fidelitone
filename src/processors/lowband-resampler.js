@@ -1,3 +1,5 @@
+import { cubicInterpolate } from "../lib/dsp/math.js";
+
 /**
  * LowbandResampler — bounded time-domain pitch shifting for the low-frequency band.
  *
@@ -32,17 +34,6 @@ const RATE_SMOOTHING = 0.18;
 function clamp(value, min, max) {
   if (!Number.isFinite(value)) return min;
   return Math.min(max, Math.max(min, value));
-}
-
-export function cubicInterpolate(p0, p1, p2, p3, t) {
-  const t2 = t * t;
-  const t3 = t2 * t;
-  return 0.5 * (
-    (2 * p1) +
-    (-p0 + p2) * t +
-    (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
-    (-p0 + 3 * p1 - 3 * p2 + p3) * t3
-  );
 }
 
 class InputRing {

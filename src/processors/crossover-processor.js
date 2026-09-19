@@ -1,3 +1,5 @@
+import { computeButterworth } from "../lib/dsp/math.js";
+
 /**
  * Linkwitz-Riley 4th-order crossover AudioWorkletProcessor.
  *
@@ -129,24 +131,6 @@ class CrossoverProcessor extends AudioWorkletProcessor {
 
     return true;
   }
-}
-
-/**
- * Compute matched 2nd-order Butterworth low/high-pass coefficients.
- * Cascading each section twice produces a Linkwitz-Riley 4th-order crossover.
- */
-function computeButterworth(cutoffFreq, sr) {
-  const wc = Math.tan(Math.PI * cutoffFreq / sr);
-  const wc2 = wc * wc;
-  const sqrt2 = Math.SQRT2;
-  const norm = 1 / (1 + sqrt2 * wc + wc2);
-
-  const a = [1, 2 * (wc2 - 1) * norm, (1 - sqrt2 * wc + wc2) * norm];
-  return {
-    lpB: [wc2 * norm, 2 * wc2 * norm, wc2 * norm],
-    hpB: [norm, -2 * norm, norm],
-    a,
-  };
 }
 
 registerProcessor('crossover', CrossoverProcessor);

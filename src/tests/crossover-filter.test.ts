@@ -1,23 +1,5 @@
 import { describe, it, expect } from "vitest";
-
-interface ButterworthCoefficients {
-  lpB: number[];
-  hpB: number[];
-  a: number[];
-}
-
-function computeButterworth(cutoffFreq: number, sr: number): ButterworthCoefficients {
-  const wc = Math.tan((Math.PI * cutoffFreq) / sr);
-  const wc2 = wc * wc;
-  const sqrt2 = Math.SQRT2;
-  const norm = 1 / (1 + sqrt2 * wc + wc2);
-
-  return {
-    lpB: [wc2 * norm, 2 * wc2 * norm, wc2 * norm],
-    hpB: [norm, -2 * norm, norm],
-    a: [1, 2 * (wc2 - 1) * norm, (1 - sqrt2 * wc + wc2) * norm],
-  };
-}
+import { computeButterworth } from "../lib/dsp/math";
 
 function applyFilterDF2T(
   input: Float32Array,

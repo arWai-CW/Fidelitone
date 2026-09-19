@@ -1,3 +1,5 @@
+import { cubicInterpolate } from "./math";
+
 /**
  * True Peak Limiter — ITU-R BS.1770 compliant
  *
@@ -7,25 +9,6 @@
  * Typical use: after band recombination in multiband processing.
  * Target: gain reduction < 0.5 dB on typical program material.
  */
-
-/** Cubic interpolation for 4x oversampling (Catmull-Rom style) */
-function cubicInterpolate(
-  p0: number,
-  p1: number,
-  p2: number,
-  p3: number,
-  t: number,
-): number {
-  const t2 = t * t;
-  const t3 = t2 * t;
-  return (
-    0.5 *
-    (2 * p1 +
-      (-p0 + p2) * t +
-      (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
-      (-p0 + 3 * p1 - 3 * p2 + p3) * t3)
-  );
-}
 
 /**
  * Detect true peak at a sample position using 4x oversampling.

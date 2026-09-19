@@ -2,15 +2,17 @@
  * Rubber Band WASM Worker — LiveShifter for offline file export
  *
  * Handles INIT → PROCESS → DELETE lifecycle.
- * All buffers pre-allocated in INIT, reused in PROCESS (zero hot-path alloc).
+ * All buffers are owned by the shared LiveShifter implementation.
  */
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+import {
+  loadRubberBandWasm,
+  RubberBandLiveShifter,
+  RUBBERBAND_WORKER_OPTIONS,
+} from "../lib/dsp/rubberband-live-shifter";
 
 interface InitMsg {
-  type: 'INIT';
+  type: "INIT";
   sampleRate: number;
   channels: number;
   pitchScale: number;
@@ -18,199 +20,127 @@ interface InitMsg {
 }
 
 interface ProcessMsg {
-  type: 'PROCESS';
+  type: "PROCESS";
   channels: Float32Array[];
 }
 
 interface SetPitchMsg {
-  type: 'SET_PITCH';
+  type: "SET_PITCH";
   pitchScale: number;
 }
 
 interface DeleteMsg {
-  type: 'DELETE';
+  type: "DELETE";
 }
 
 type WorkerMsg = InitMsg | ProcessMsg | SetPitchMsg | DeleteMsg;
 
-// ---------------------------------------------------------------------------
-// WASM bindings (filled after load)
-// ---------------------------------------------------------------------------
+let liveShifter: RubberBandLiveShifter | null = null;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let exports: any = null;
-
-let state = 0;
-let blockSize = 0;
-let channels = 0;
-let inputChPtrs = 0;
-let outputChPtrs = 0;
-let inputBufs: number[] = [];
-let outputBufs: number[] = [];
-
-let wasmF32: Float32Array = new Float32Array(0);
-
-function refreshViews() {
-  wasmF32 = new Float32Array(exports.memory.buffer);
+async function loadWasm(): Promise<void> {
+  const exports = await loadRubberBandWasm();
+  if (!exports) {
+    self.postMessage({ type: "WASM_ERROR", error: "Failed to load RubberBand WASM" });
+    return;
+  }
+  liveShifter = new RubberBandLiveShifter(exports, RUBBERBAND_WORKER_OPTIONS);
+  self.postMessage({ type: "WASM_READY" });
 }
 
-// ---------------------------------------------------------------------------
-// WASM loading
-// ---------------------------------------------------------------------------
-
-async function loadWasm() {
-  const wasmUrl = new URL('../wasm/rubberband.wasm', import.meta.url);
-  const { instance } = await WebAssembly.instantiateStreaming(fetch(wasmUrl), {
-    env: {
-      emscripten_notify_memory_growth: () => {},
-    },
-    wasi_snapshot_preview1: {
-      environ_get: () => 0,
-      environ_sizes_get: () => 0,
-      fd_seek: () => 0,
-      fd_close: () => 0,
-      fd_write: () => 0,
-      fd_read: () => 0,
-      clock_time_get: () => 0,
-    },
-  });
-
-  exports = instance.exports;
-  refreshViews();
-  self.postMessage({ type: 'WASM_READY' });
-}
-
-// ---------------------------------------------------------------------------
-// Message handling
-// ---------------------------------------------------------------------------
-
-function handleInit(sampleRate: number, ch: number, pitchScale: number, preserveFormants: boolean = false) {
-  channels = ch;
-
-  state = exports.rb_live_new(sampleRate, channels, 0);
-  if (state === 0) {
-    self.postMessage({ type: 'INIT_ERROR', error: 'Failed to create LiveShifter' });
+function handleInit(
+  sampleRate: number,
+  channels: number,
+  pitchScale: number,
+  preserveFormants = false,
+): void {
+  if (!liveShifter) {
+    self.postMessage({ type: "INIT_ERROR", error: "LiveShifter is not loaded" });
     return;
   }
 
-  exports.rb_live_set_pitch_scale(state, pitchScale);
-
-  if (preserveFormants && exports.rb_live_set_formant_option) {
-    exports.rb_live_set_formant_option(state, 0x01000000); // OptionFormantPreserved
+  try {
+    const initialized = liveShifter.init(sampleRate, channels, pitchScale, preserveFormants);
+    if (!initialized) {
+      self.postMessage({ type: "INIT_ERROR", error: "Failed to create LiveShifter" });
+      return;
+    }
+    self.postMessage({
+      type: "INIT_OK",
+      blockSize: initialized.blockSize,
+      startDelay: initialized.startDelay,
+      channels: initialized.channels,
+      sampleRate: initialized.sampleRate,
+    });
+  } catch (error) {
+    self.postMessage({
+      type: "INIT_ERROR",
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
-
-  blockSize = exports.rb_live_get_block_size(state);
-  const startDelay = exports.rb_live_get_start_delay(state);
-
-  const chBufBytes = blockSize * 4;
-  inputBufs = [];
-  outputBufs = [];
-  for (let i = 0; i < channels; i++) {
-    inputBufs.push(exports.wasm_malloc(chBufBytes));
-    outputBufs.push(exports.wasm_malloc(chBufBytes));
-  }
-  inputChPtrs = exports.wasm_malloc(channels * 4);
-  outputChPtrs = exports.wasm_malloc(channels * 4);
-
-  refreshViews();
-  const u32 = new Uint32Array(exports.memory.buffer);
-  for (let i = 0; i < channels; i++) {
-    u32[(inputChPtrs >> 2) + i] = inputBufs[i];
-    u32[(outputChPtrs >> 2) + i] = outputBufs[i];
-  }
-
-  self.postMessage({
-    type: 'INIT_OK',
-    blockSize,
-    startDelay,
-    channels,
-    sampleRate,
-  });
 }
 
-function handleProcess(channelsData: Float32Array[]) {
-  if (state === 0) {
-    self.postMessage({ type: 'PROCESS_ERROR', error: 'Not initialized' });
+function handleProcess(channelsData: Float32Array[]): void {
+  if (!liveShifter?.isInitialized) {
+    self.postMessage({ type: "PROCESS_ERROR", error: "Not initialized" });
+    return;
+  }
+  if (!channelsData.length) {
+    self.postMessage({ type: "PROCESS_ERROR", error: "No input channels" });
     return;
   }
 
   const totalSamples = channelsData[0].length;
+  const blockSize = liveShifter.currentBlockSize;
   const numBlocks = Math.ceil(totalSamples / blockSize);
-  const output: Float32Array[] = [];
-  for (let ch = 0; ch < channels; ch++) {
-    output.push(new Float32Array(numBlocks * blockSize));
+  const output = Array.from({ length: liveShifter.currentChannels }, () =>
+    new Float32Array(numBlocks * blockSize),
+  );
+
+  for (let blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
+    const offset = blockIndex * blockSize;
+    const chunkLength = Math.min(blockSize, totalSamples - offset);
+    const chunk = channelsData.map((channel) => channel.subarray(offset, offset + chunkLength));
+    liveShifter.shift(
+      chunk,
+      output.map((channel) => channel.subarray(offset, offset + blockSize)),
+    );
   }
 
-  for (let blockIdx = 0; blockIdx < numBlocks; blockIdx++) {
-    const offset = blockIdx * blockSize;
-    const chunkLen = Math.min(blockSize, totalSamples - offset);
-
-    refreshViews();
-    for (let ch = 0; ch < channels; ch++) {
-      const base = inputBufs[ch] >> 2;
-      for (let i = 0; i < chunkLen; i++) wasmF32[base + i] = channelsData[ch][offset + i];
-      for (let i = chunkLen; i < blockSize; i++) wasmF32[base + i] = 0;
-    }
-
-    exports.rb_live_shift(state, inputChPtrs, outputChPtrs);
-
-    refreshViews();
-    for (let ch = 0; ch < channels; ch++) {
-      const base = outputBufs[ch] >> 2;
-      for (let i = 0; i < blockSize; i++) output[ch][offset + i] = wasmF32[base + i];
+  const outputLength = numBlocks * blockSize;
+  const outputInterleaved = new Float32Array(outputLength * liveShifter.currentChannels);
+  for (let sample = 0; sample < outputLength; sample++) {
+    for (let channel = 0; channel < liveShifter.currentChannels; channel++) {
+      outputInterleaved[sample * liveShifter.currentChannels + channel] = output[channel][sample];
     }
   }
 
-  const outLen = numBlocks * blockSize;
-  const outputInterleaved = new Float32Array(outLen * channels);
-  for (let i = 0; i < outLen; i++) {
-    for (let ch = 0; ch < channels; ch++) {
-      outputInterleaved[i * channels + ch] = output[ch][i];
-    }
-  }
-
-  self.postMessage({ type: 'PROCESS_OK', output: outputInterleaved });
+  self.postMessage({ type: "PROCESS_OK", output: outputInterleaved });
 }
 
-function handleSetPitch(pitchScale: number) {
-  if (state === 0) return;
-  exports.rb_live_set_pitch_scale(state, pitchScale);
+function handleSetPitch(pitchScale: number): void {
+  liveShifter?.setPitchScale(pitchScale);
 }
 
-function handleDelete() {
-  if (state !== 0) {
-    exports.rb_live_delete(state);
-    state = 0;
-  }
-  for (const ptr of [...inputBufs, ...outputBufs, inputChPtrs, outputChPtrs]) {
-    if (ptr !== 0) exports.wasm_free(ptr);
-  }
-  inputBufs = [];
-  outputBufs = [];
-  inputChPtrs = 0;
-  outputChPtrs = 0;
+function handleDelete(): void {
+  liveShifter?.delete();
 }
 
-// ---------------------------------------------------------------------------
-// Entry
-// ---------------------------------------------------------------------------
-
-self.onmessage = (e: MessageEvent<WorkerMsg>) => {
-  const msg = e.data;
-  switch (msg.type) {
-    case 'INIT':
-      handleInit(msg.sampleRate, msg.channels, msg.pitchScale, msg.preserveFormants);
+self.onmessage = (event: MessageEvent<WorkerMsg>) => {
+  const message = event.data;
+  switch (message.type) {
+    case "INIT":
+      handleInit(message.sampleRate, message.channels, message.pitchScale, message.preserveFormants);
       break;
-    case 'PROCESS':
-      handleProcess(msg.channels);
+    case "PROCESS":
+      handleProcess(message.channels);
       break;
-    case 'SET_PITCH':
-      handleSetPitch(msg.pitchScale);
+    case "SET_PITCH":
+      handleSetPitch(message.pitchScale);
       break;
-    case 'DELETE':
+    case "DELETE":
       handleDelete();
       break;
   }
 };
 
-loadWasm();
+void loadWasm();

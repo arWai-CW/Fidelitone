@@ -1,26 +1,24 @@
 // popup controller - connection state, pitch controls, engine selection, and processing mode
 
-type Engine = "signalsmith" | "rubberband";
-type ConnectionState = "disconnected" | "connecting" | "connected" | "lost";
-
-interface EngineAvailability {
-  signalsmith: boolean;
-  rubberband: boolean;
-}
-
-interface CaptureState {
-  ready?: boolean;
-  connected: boolean;
-  pitch: number;
-  bypass: boolean;
-  preserveFormants: boolean;
-  accompanimentMode: boolean;
-  engine?: Engine;
-  selectedEngine?: Engine;
-  route?: string;
-  captureLost?: boolean;
-  engineAvailability?: EngineAvailability;
-}
+import {
+  applyCaptureState,
+  clampPitch,
+  connectionState,
+  createPopupState,
+  formatSemitones,
+  isEngine,
+  isProcessingLocked,
+  PITCH_MAX,
+  PITCH_MIN,
+  roundPitch,
+  selectEngine,
+  setBypass,
+  setConnected as updateConnectedState,
+  setConnecting,
+  type CaptureState,
+  type Engine,
+  type PopupState,
+} from "./popup-state";
 
 interface RuntimeResponse {
   ok?: boolean;
@@ -34,8 +32,6 @@ type StoredSettings = Partial<CaptureState> & {
   engine?: Engine;
 };
 
-const PITCH_MIN = -12;
-const PITCH_MAX = 12;
 const ACCOMPANIMENT_COMMAND_TIMEOUT_MS = 25000;
 
 function getElement<T extends HTMLElement>(id: string): T {
@@ -64,38 +60,7 @@ const engineSignalsmith = getElement<HTMLButtonElement>("engineSignalsmith");
 const engineRubberband = getElement<HTMLButtonElement>("engineRubberband");
 const tooltip = getElement<HTMLDivElement>("tooltip");
 
-let connected = false;
-let connecting = false;
-let captureLost = false;
-let isBypassed = false;
-let selectedEngine: Engine = "rubberband";
-let currentRoute: string | null = null;
-let engineAvailability: EngineAvailability = {
-  signalsmith: false,
-  rubberband: false,
-};
-
-function isEngine(value: unknown): value is Engine {
-  return value === "rubberband" || value === "signalsmith";
-}
-
-function isProcessingLocked(): boolean {
-  return !connected || connecting || captureLost;
-}
-
-function clampPitch(value: number): number {
-  return Math.min(PITCH_MAX, Math.max(PITCH_MIN, value));
-}
-
-function roundPitch(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
-function formatSemitones(value: number): string {
-  const rounded = roundPitch(value);
-  const sign = rounded >= 0 ? "+" : "";
-  return `${sign}${rounded.toFixed(2)}`;
-}
+let popupState = createPopupState();
 
 function getPitch(): number {
   const value = Number.parseFloat(pitchSlider.value);
@@ -119,7 +84,7 @@ function updateStepButtons() {
 }
 
 function refreshControlAvailability() {
-  const locked = !connected || connecting || captureLost;
+  const locked = isProcessingLocked(popupState);
   document.querySelectorAll<HTMLElement>(".control-lock").forEach((element) => {
     element.classList.toggle("is-disabled", locked);
     element.setAttribute("aria-disabled", String(locked));
@@ -136,14 +101,14 @@ function refreshControlAvailability() {
 
   const accompanimentLocksRubberband = accompanimentCheckbox.checked;
   engineSignalsmith.disabled = locked;
-  engineRubberband.disabled = locked || accompanimentLocksRubberband || !engineAvailability.rubberband;
+  engineRubberband.disabled = locked || accompanimentLocksRubberband || !popupState.engineAvailability.rubberband;
 
   renderEngineState();
   updateBypassButtonState();
 }
 
 function renderConnectionState() {
-  const state: ConnectionState = connecting ? "connecting" : captureLost ? "lost" : connected ? "connected" : "disconnected";
+  const state = connectionState(popupState);
   body.dataset.connectionState = state;
 
   if (state === "connecting") {
@@ -172,8 +137,8 @@ function renderConnectionState() {
     connectBtn.setAttribute("data-tooltip", "連線音訊");
   }
 
-  connectBtn.disabled = connecting;
-  connectBtn.setAttribute("aria-busy", String(connecting));
+  connectBtn.disabled = popupState.connecting;
+  connectBtn.setAttribute("aria-busy", String(popupState.connecting));
   refreshControlAvailability();
 }
 
@@ -181,7 +146,7 @@ function showError(message: string, markLost = false) {
   errorMsg.textContent = message;
   errorMsg.classList.add("visible");
   if (markLost) {
-    captureLost = true;
+    popupState = { ...popupState, captureLost: true };
     renderConnectionState();
   }
 }
@@ -192,8 +157,7 @@ function clearError() {
 }
 
 function setConnected(nextConnected: boolean) {
-  connected = nextConnected;
-  if (!connected) captureLost = false;
+  popupState = updateConnectedState(popupState, nextConnected);
   renderConnectionState();
 }
 
@@ -300,19 +264,19 @@ function renderEngineState() {
   ];
 
   for (const [button, engine] of engines) {
-    const selected = engine === selectedEngine;
-    const available = engineAvailability[engine];
+    const selected = engine === popupState.selectedEngine;
+    const available = popupState.engineAvailability[engine];
     const fixedForAccompaniment = accompanimentLocksRubberband && engine === "rubberband";
     button.classList.toggle("is-selected", selected);
     button.setAttribute("aria-checked", String(selected));
-    button.disabled = !connected || connecting || captureLost || fixedForAccompaniment || (engine === "rubberband" && !available);
+    button.disabled = isProcessingLocked(popupState) || fixedForAccompaniment || (engine === "rubberband" && !available);
   }
 }
 
 function updateBypassButtonState() {
-  bypassBtn.setAttribute("aria-pressed", String(isBypassed));
-  bypassBtn.setAttribute("aria-label", isBypassed ? "停用旁路" : "啟用旁路");
-  bypassBtn.setAttribute("data-tooltip", isBypassed ? "停用旁路 (引擎處理)" : "啟用旁路 (原始音訊直通)");
+  bypassBtn.setAttribute("aria-pressed", String(popupState.bypass));
+  bypassBtn.setAttribute("aria-label", popupState.bypass ? "停用旁路" : "啟用旁路");
+  bypassBtn.setAttribute("data-tooltip", popupState.bypass ? "停用旁路 (引擎處理)" : "啟用旁路 (原始音訊直通)");
 }
 
 function applySnap(snap: boolean) {
@@ -331,11 +295,11 @@ function applyStoredUi(data: StoredSettings) {
   pitchSlider.value = String(pitch);
   updatePitchDisplay(pitch);
 
-  isBypassed = data.bypass === true;
+  popupState = setBypass(popupState, data.bypass === true);
   applySnap(data.snapToInteger !== false);
   formantCheckbox.checked = data.preserveFormants === true;
   accompanimentCheckbox.checked = data.accompanimentMode === true;
-  selectedEngine = isEngine(data.engine) ? data.engine : "rubberband";
+  popupState = selectEngine(popupState, isEngine(data.engine) ? data.engine : "rubberband");
 
   renderEngineState();
   updateBypassButtonState();
@@ -343,14 +307,7 @@ function applyStoredUi(data: StoredSettings) {
 }
 
 function applyLiveState(state: CaptureState) {
-  selectedEngine = isEngine(state.selectedEngine) ? state.selectedEngine : isEngine(state.engine) ? state.engine : selectedEngine;
-  currentRoute = state.route ?? null;
-  captureLost = state.captureLost === true;
-  isBypassed = state.bypass === true;
-  engineAvailability = state.engineAvailability ?? {
-    signalsmith: selectedEngine === "signalsmith",
-    rubberband: selectedEngine === "rubberband",
-  };
+  popupState = applyCaptureState(popupState, state);
 
   const pitch = typeof state.pitch === "number" ? clampPitch(state.pitch) : 0;
   pitchSlider.value = String(pitch);
@@ -397,7 +354,7 @@ async function updatePitch(value: number, send = true): Promise<void> {
   updateStepButtons();
   await storageSet({ pitch: nextValue });
 
-  if (send && connected && !connecting && !captureLost) {
+  if (send && !isProcessingLocked(popupState)) {
     const ok = await sendSafe({ type: "SET_PITCH", value: { semitones: nextValue } }, false);
     if (!ok) {
       pitchSlider.value = String(previousValue);
@@ -430,15 +387,13 @@ async function getCaptureState(): Promise<CaptureState | null> {
 async function refreshRouteState(): Promise<void> {
   const state = await getCaptureState();
   if (!state) return;
-  currentRoute = state.route ?? currentRoute;
-  engineAvailability = state.engineAvailability ?? engineAvailability;
-  selectedEngine = isEngine(state.selectedEngine) ? state.selectedEngine : selectedEngine;
+  popupState = applyCaptureState(popupState, state);
   renderEngineState();
 }
 
 async function connectCurrentTab(): Promise<boolean> {
-  if (connecting) return false;
-  connecting = true;
+  if (popupState.connecting) return false;
+  popupState = setConnecting(popupState, true);
   renderConnectionState();
   clearError();
 
@@ -473,14 +428,14 @@ async function connectCurrentTab(): Promise<boolean> {
     showError(err instanceof Error ? err.message : String(err));
     return false;
   } finally {
-    connecting = false;
+    popupState = setConnecting(popupState, false);
     renderConnectionState();
   }
 }
 
 async function disconnectCapture(): Promise<boolean> {
-  if (connecting) return false;
-  connecting = true;
+  if (popupState.connecting) return false;
+  popupState = setConnecting(popupState, true);
   renderConnectionState();
   clearError();
 
@@ -490,7 +445,7 @@ async function disconnectCapture(): Promise<boolean> {
       showError(response?.error ?? "Unable to stop capture");
       return false;
     }
-    captureLost = false;
+    popupState = { ...popupState, captureLost: false };
     setConnected(false);
     await storageSet({ connected: false });
     return true;
@@ -498,7 +453,7 @@ async function disconnectCapture(): Promise<boolean> {
     showError(err instanceof Error ? err.message : String(err));
     return false;
   } finally {
-    connecting = false;
+    popupState = setConnecting(popupState, false);
     renderConnectionState();
   }
 }
@@ -508,7 +463,7 @@ async function syncConnectionState(): Promise<CaptureState | null> {
   if (!response?.ok || !response.state || response.ready === false) return null;
 
   applyLiveState(response.state);
-  setConnected(response.state.connected);
+  popupState = updateConnectedState(popupState, response.state.connected);
   await storageSet({ connected: response.state.connected });
   return response.state;
 }
@@ -581,7 +536,7 @@ function attachTooltipListeners() {
 }
 
 snapCheckbox.addEventListener("change", () => {
-  if (isProcessingLocked()) return;
+  if (isProcessingLocked(popupState)) return;
   const snap = snapCheckbox.checked;
   applySnap(snap);
   void storageSet({ snapToInteger: snap }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
@@ -589,7 +544,7 @@ snapCheckbox.addEventListener("change", () => {
 });
 
 formantCheckbox.addEventListener("change", async () => {
-  if (isProcessingLocked()) return;
+  if (isProcessingLocked(popupState)) return;
   const preserve = formantCheckbox.checked;
   try {
     await storageSet({ preserveFormants: preserve });
@@ -606,7 +561,7 @@ formantCheckbox.addEventListener("change", async () => {
 });
 
 accompanimentCheckbox.addEventListener("change", async () => {
-  if (isProcessingLocked()) return;
+  if (isProcessingLocked(popupState)) return;
   const enabled = accompanimentCheckbox.checked;
   try {
     await storageSet({ accompanimentMode: enabled });
@@ -630,7 +585,7 @@ accompanimentCheckbox.addEventListener("change", async () => {
 });
 
 connectBtn.addEventListener("click", async () => {
-  if (connected) {
+  if (popupState.connected) {
     await disconnectCapture();
   } else {
     await connectCurrentTab();
@@ -639,14 +594,14 @@ connectBtn.addEventListener("click", async () => {
 
 bypassBtn.addEventListener("click", async () => {
   // Allow bypass toggle even when bypassed (but not when disconnected/connecting/lost)
-  if (!connected || connecting || captureLost) return;
-  const previousBypass = isBypassed;
-  isBypassed = !isBypassed;
+  if (isProcessingLocked(popupState)) return;
+  const previousBypass = popupState.bypass;
+  popupState = setBypass(popupState, !previousBypass);
   updateBypassButtonState();
-  await storageSet({ bypass: isBypassed }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
+  await storageSet({ bypass: popupState.bypass }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
 
-  if (!(await sendSafe({ type: "SET_BYPASS", value: { active: isBypassed } }))) {
-    isBypassed = previousBypass;
+  if (!(await sendSafe({ type: "SET_BYPASS", value: { active: popupState.bypass } }))) {
+    popupState = setBypass(popupState, previousBypass);
     updateBypassButtonState();
     await storageSet({ bypass: previousBypass }).catch(() => undefined);
   } else {
@@ -655,56 +610,56 @@ bypassBtn.addEventListener("click", async () => {
 });
 
 pitchSlider.addEventListener("input", () => {
-  if (isProcessingLocked()) return;
+  if (isProcessingLocked(popupState)) return;
   void updatePitch(getPitch(), true).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
 });
 
 pitchDown.addEventListener("click", () => {
-  if (isProcessingLocked()) return;
+  if (isProcessingLocked(popupState)) return;
   void updatePitch(getPitch() - getPitchStep(), true).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
 });
 
 pitchUp.addEventListener("click", () => {
-  if (isProcessingLocked()) return;
+  if (isProcessingLocked(popupState)) return;
   void updatePitch(getPitch() + getPitchStep(), true).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
 });
 
 pitchReset.addEventListener("click", () => {
-  if (isProcessingLocked()) return;
+  if (isProcessingLocked(popupState)) return;
   void updatePitch(0, true).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
 });
 
 engineSignalsmith.addEventListener("click", async () => {
-  if (isProcessingLocked()) return;
-  const previousEngine = selectedEngine;
-  selectedEngine = "signalsmith";
+  if (isProcessingLocked(popupState)) return;
+  const previousEngine = popupState.selectedEngine;
+  popupState = selectEngine(popupState, "signalsmith");
   renderEngineState();
   refreshControlAvailability();
-  await storageSet({ engine: selectedEngine }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
+  await storageSet({ engine: popupState.selectedEngine }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
 
   if (!(await sendSafe({ type: "SET_ENGINE", engine: "signalsmith" }))) {
-    selectedEngine = previousEngine;
+    popupState = selectEngine(popupState, previousEngine);
     renderEngineState();
     refreshControlAvailability();
-    await storageSet({ engine: selectedEngine }).catch(() => undefined);
+    await storageSet({ engine: popupState.selectedEngine }).catch(() => undefined);
   } else {
     await refreshRouteState();
   }
 });
 
 engineRubberband.addEventListener("click", async () => {
-  if (isProcessingLocked()) return;
-  const previousEngine = selectedEngine;
-  selectedEngine = "rubberband";
+  if (isProcessingLocked(popupState)) return;
+  const previousEngine = popupState.selectedEngine;
+  popupState = selectEngine(popupState, "rubberband");
   renderEngineState();
   refreshControlAvailability();
-  await storageSet({ engine: selectedEngine }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
+  await storageSet({ engine: popupState.selectedEngine }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
 
   if (!(await sendSafe({ type: "SET_ENGINE", engine: "rubberband" }))) {
-    selectedEngine = previousEngine;
+    popupState = selectEngine(popupState, previousEngine);
     renderEngineState();
     refreshControlAvailability();
-    await storageSet({ engine: selectedEngine }).catch(() => undefined);
+    await storageSet({ engine: popupState.selectedEngine }).catch(() => undefined);
   } else {
     await refreshRouteState();
   }

@@ -115,21 +115,3 @@ export async function setSignalsmithPitchWithFormants(
   });
   console.log("[signalsmith-fallback] Pitch →", semitones, "semitones, formant preservation:", preserveFormants);
 }
-
-/**
- * Activate/deactivate Signalsmith engine.
- */
-export async function setSignalsmithActive(
-  engine: SignalsmithEngine | null,
-  active: boolean,
-  semitones: number,
-  ctx: AudioContext
-): Promise<void> {
-  if (!engine?.ready) return;
-  const latency = await engine.node.latency();
-  await engine.node.schedule({
-    active,
-    semitones,
-    output: ctx.currentTime + Math.max(0.05, latency),
-  });
-}
