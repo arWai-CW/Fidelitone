@@ -12,6 +12,9 @@ skills-lock.json
 # staged from node_modules by tools/latency-probe/serve.mjs
 tools/latency-probe/vendor/
 
+# built copy of dist/ by tools/popup-preview/serve.mjs
+tools/popup-preview/preview/
+
 # impeccable working files: review captures, world reference cards,
 # machine-local config (shipped DESIGN.md / .impeccable/design.json stay tracked)
 .impeccable/review/

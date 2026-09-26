@@ -5,6 +5,12 @@ Real-time audio pitch transposition for Chrome tabs.
 Transpose the pitch of audio playing in any Chrome tab without affecting tempo.
 Works with YouTube, Spotify Web, SoundCloud, and any other web audio source.
 
+![The Fidelitone popup, connected to a YouTube tab at +3 semitones](docs/images/popup-connected.png)
+
+The rail across the top is the whole interface: drag the pennant to the
+semitone you need and let go. Everything below it tells you what the extension
+is actually doing to the audio — including when that is nothing.
+
 
 ## Features
 
@@ -15,12 +21,28 @@ Works with YouTube, Spotify Web, SoundCloud, and any other web audio source.
 - Per-page memory: every page URL keeps its own pitch, bypass, formant and
   accompaniment settings (sparse — only non-default values are stored)
 - Follows the tab you switch to, and applies that page's remembered settings
+- Accompaniment mode: a 175 Hz crossover so the bass is resampled instead of
+  stretched, which is what keeps low notes solid
 - Toolbar badge shows where the audio is coming from (`ON` / `ON·` / `!`)
 - YouTube volume control: set the page volume to an exact 0–100 value with a
   500 ms fade instead of a jump — apply it against a persistent baseline, or
   fade the page out to silence
 - No external audio processing required
 - Works on any website with audio playback
+
+
+## Screenshots
+
+| | |
+| --- | --- |
+| ![Not connected](docs/images/popup-disconnected.png)<br>Opening the popup never captures anything on its own — **連線音訊** is the only entry point. | ![Connected at +3 st](docs/images/popup-connected.png)<br>The page remembers the setting, so coming back to this URL restores it. |
+| ![Accompaniment mode](docs/images/popup-accompaniment.png)<br>Accompaniment mode. Below 175 Hz goes through this project's own resampler rather than the stretcher. | ![Engine unavailable](docs/images/popup-engine-unavailable.png)<br>When the engine cannot start, the signal path says so, instead of leaving a slider that appears to do nothing. |
+| ![Audio in another tab](docs/images/popup-divergence.png)<br>The audio belongs to another tab. The popup names it, offers to re-capture, and locks the controls because those settings are a different record. | |
+
+These are the real built popup driven against a mock of the `chrome.*` APIs, so
+every state is reproducible without a capture running — `npm run preview` serves
+them at `http://localhost:8743/popup.html` with the state selected by query
+string.
 
 
 ## Installation
@@ -48,6 +70,7 @@ npm test           # vitest
 npm run typecheck  # tsc --noEmit
 npm run dev        # content:watch + vite --watch
 npm run latency    # measure the pitch engine's latency in a browser
+npm run preview    # serve the built popup against a mock chrome API
 ```
 
 `npm run build` needs nothing beyond the npm dependencies — there is no native
@@ -236,6 +259,35 @@ compressor nodes.
   reconciliation state machine for "the audio is over there, not here".
 - The MAIN-world content-script bridge, because YouTube's player API is
   page-owned JavaScript that an isolated-world content script cannot reach.
+
+
+## Documentation
+
+The interesting part of this repo is the record of how decisions were made, not
+the code. Start here:
+
+| | |
+| --- | --- |
+| [`CONTEXT.md`](CONTEXT.md) | The domain vocabulary, with an *Avoid* list per term. One word per concept, in `zh-Hant`. |
+| [`PRODUCT.md`](PRODUCT.md) | Who it is for, what it refuses to do, and which constraints are platform facts rather than choices. |
+| [`DESIGN.md`](DESIGN.md) | The popup design system: named rules, a single-ink rule, a contrast floor, and what this design world explicitly rejects. |
+| [`docs/adr/`](docs/adr/) | Seven architecture decision records. |
+| [`docs/runtime-verification.md`](docs/runtime-verification.md) | What was actually run, what passed, and the measured numbers. |
+
+### Decision records
+
+| ADR | Decision |
+| --- | --- |
+| [0001](docs/adr/0001-accompaniment-stereo-mix.md) | Accompaniment output is a stereo sum, not a channel merge — `ChannelMerger` maps channels, it does not sum them. This is also where a residual +6 dB gain got root-caused. |
+| [0002](docs/adr/0002-lowband-resampler-semantics.md) | Positive rate semantics for the lowband resampler, and why its timeline stays bounded in a live stream. |
+| [0003](docs/adr/0003-architecture-modification-plan.md) | Splitting a 994-line offscreen file into modules with small interfaces, with characterization tests written first. |
+| [0004](docs/adr/0004-per-page-memory-and-tab-follow.md) | Memory keyed by page URL rather than origin, and one atomic handover when the capture follows you. |
+| [0005](docs/adr/0005-youtube-volume-and-loudness.md) | The YouTube volume panel, and the MAIN-world content script needed to reach a page-owned player API. |
+| [0006](docs/adr/0006-remove-loudness-analysis.md) | **Reverses 0005.** The dB loudness analysis shipped, got used, and turned out to be meaningless to users — so it was removed down to the code and the tests, and this record says why. |
+| [0007](docs/adr/0007-single-pitch-engine.md) | **Removes the second engine.** Rubber Band was GPLv2+, was never used in the accompaniment path, and daily use had moved to the other one. Removing it also collapsed the licence to a single permissive one — and forced the latency to actually be measured. |
+
+Two of these are reversals. That is on purpose: an ADR that only ever says yes
+is not a record of judgement.
 
 
 ## License
