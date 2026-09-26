@@ -172,3 +172,45 @@ Load `dist` as an unpacked extension and walk the list below. Record the results
 - [ ] **handover 交接**：切換分頁後輸出總閘淡出淡入無爆音，且新分頁的頁面記憶正確套用。
 - [ ] **舊記錄相容**：從移除前的版本升級，既有 `page:<url>` 記錄裡殘留的 `engine` 欄位不造成錯誤，且任一設定變更後該欄位消失。
 - [ ] **延遲量測**：量一次 Signalsmith 的實際輸出延遲（`node.latency()`），記錄在 README——這是移除雙引擎後唯一還缺的公開數據。
+
+## Latency measurement
+
+Measured with `tools/latency-probe` (`npm run latency`), Chromium, 48 kHz, a
+tap worklet timestamping the impulse's arrival. The impulse is started at a
+time chosen independently of the number being checked, so the measurement does
+not inherit `latency()`.
+
+| configuration | `node.latency()` | measured |
+| --- | --- | --- |
+| `blockMs 80 / intervalMs 20 / splitComputation: true` (shipping) | 100.0 ms | 100.0 ms |
+| `blockMs 80 / intervalMs 20 / splitComputation: false` | 80.0 ms | 80.0 ms |
+| `blockMs 40 / intervalMs 10 / splitComputation: true` | 50.0 ms | 50.0 ms |
+| `blockMs 20 / intervalMs 5 / splitComputation: true` | 25.0 ms | 25.0 ms |
+| `blockMs 160 / intervalMs 40 / splitComputation: true` | 200.0 ms | 200.0 ms |
+
+Platform buffering on the same machine: `baseLatency` 5.33 ms, `outputLatency`
+16.00 ms. tabCapture's input buffering is not documented by Chrome and is not
+included; an end-to-end figure needs acoustic A/B measurement against a loopback
+capture, which this repo does not attempt.
+
+Method notes:
+
+- **Offline rendering does not work for this library.** Its worklet resolves
+  `factory()` from a `port.postMessage` handshake, and an `OfflineAudioContext`
+  renders to completion before the main thread can service that message, so the
+  node never initialises and the render comes back silent. This was tried first
+  and abandoned; the realtime tap replaced it.
+- `splitComputation: true` costs 20 ms. It spreads the stretcher's work across
+  render quanta, which is why the shipping configuration carries it.
+- Latency is linear in `blockMs`. Halving it halves the delay.
+
+Consequences recorded in code and docs:
+
+- `README.md` no longer claims "minimal latency"; it quotes 100 ms.
+- `ACCOMPANIMENT_ALIGN_DELAY_S = 0.09` is now explained: the engine's 100 ms
+  minus the lowband path's own ~10 ms. The two constants are in different files
+  with nothing enforcing the relationship, so both sites now carry a comment
+  warning that changing `blockMs` requires re-deriving the alignment.
+
+Not evaluated: whether a lower-latency configuration sounds acceptable. That
+needs a listening test, so the shipping configuration is unchanged.

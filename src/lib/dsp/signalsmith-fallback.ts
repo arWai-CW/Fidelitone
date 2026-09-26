@@ -57,11 +57,23 @@ export async function createSignalsmithEngine(
       outputChannelCount: [2],
     })) as StretchNode;
 
-    await node.configure({
-      blockMs: 80,
-      intervalMs: 20,
-      splitComputation: true,
-    });
+    // These three numbers set the engine's latency, and the latency is load
+    // bearing: `ACCOMPANIMENT_ALIGN_DELAY_S` (offscreen-state.ts) is a hand-tuned
+    // constant that aligns the accompaniment graph's lowband path against this
+    // one. Measured with tools/latency-probe (`npm run latency`):
+    //
+    //   blockMs 80 / intervalMs 20 / splitComputation true   -> 100 ms
+    //   blockMs 80 / intervalMs 20 / splitComputation false  ->  80 ms
+    //   blockMs 40 / intervalMs 10 / splitComputation true   ->  50 ms
+    //   blockMs 20 / intervalMs  5 / splitComputation true   ->  25 ms
+    //
+    // Changing blockMs here without re-deriving the alignment constant makes the
+    // two accompaniment bands arrive at different times, which is audible as
+    // phasing between the bass and everything above 175 Hz. Re-run the probe
+    // before touching this.
+    const blockMs = 80;
+    const intervalMs = 20;
+    await node.configure({ blockMs, intervalMs, splitComputation: true });
     const latency = await node.latency();
     await node.schedule({
       active: true,
@@ -69,7 +81,10 @@ export async function createSignalsmithEngine(
       output: ctx.currentTime + Math.max(0.05, latency),
     });
 
-    console.log("[signalsmith-fallback] Signalsmith Stretch node ready, latency:", latency);
+    console.log(
+      `[signalsmith-fallback] Signalsmith Stretch ready, latency ${(latency * 1000).toFixed(1)} ms ` +
+      `(blockMs ${blockMs}, intervalMs ${intervalMs})`,
+    );
     return { node, ready: true };
   } catch (err) {
     node?.disconnect();

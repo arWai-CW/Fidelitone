@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fidelitone — Signalsmith Stretch latency probe</title>
+<style>
+  body { background: #0a0a0a; color: #f2f2f2; font: 13px/1.7 ui-monospace, SFMono-Regular, monospace; padding: 24px; }
+  h1 { font-size: 15px; letter-spacing: .04em; margin: 0 0 4px; }
+  p.sub { color: #8d8d8d; margin: 0 0 20px; }
+  h2 { font-size: 12px; color: #ff5a1f; letter-spacing: .18em; margin: 26px 0 8px; text-transform: uppercase; }
+  button { font: inherit; padding: 10px 18px; margin-bottom: 16px; background: #ff5a1f; color: #0a0a0a; border: 0; border-radius: 3px; font-weight: 700; cursor: pointer; }
+  pre { white-space: pre-wrap; color: #a8a8a8; }
+  table { border-collapse: collapse; margin-top: 12px; }
+  td, th { padding: 5px 16px 5px 0; text-align: left; border-bottom: 1px solid #2e2e2e; }
+  th { color: #8d8d8d; font-weight: 600; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .note { color: #8d8d8d; margin-top: 18px; }
+  code { color: #f2f2f2; }
+</style>
+</head>
+<body>
+<h1>SIGNALSMITH STRETCH — LATENCY PROBE</h1>
+<p class="sub">Measures the delay the stretch worklet adds between an impulse entering its input and leaving its output.</p>
+
+<button id="go">measure</button>
+<pre id="out">idle — press measure (the browser needs a click to start audio)</pre>
+<div id="table"></div>
+
+<script type="module">
+// The probe measures the worklet in isolation: an AudioBufferSource (not a
+// tabCapture stream) goes in, and a tap worklet timestamps the first loud
+// sample to come out. The difference is the algorithmic delay.
+//
+// What it does NOT include: tabCapture's input buffering (undocumented by
+// Chrome), and the platform's own output latency (reported separately as
+// ctx.outputLatency). Add those for an end-to-end figure.
+
+const WORKLET_URL = "./vendor/SignalsmithStretch.mjs"; // also the factory module
+const out = document.getElementById("out");
+const rows = [];
+const log = (...a) => { out.textContent += "\n" + a.join(" "); };
+window.__done = false;
+window.__rows = rows;
+
+const withTimeout = (p, ms, label) =>
+  Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout: " + label)), ms))]);
+
+// currentTime inside a worklet is the START of the current render quantum, so
+// adding i/sampleRate gives a sample-accurate arrival time rather than the
+// ~2.7 ms resolution you would get from polling an AnalyserNode.
+const TAP_SRC = `
+class TapProcessor extends AudioWorkletProcessor {
+  constructor(options) {
+    super();
+    this.threshold = options.processorOptions.threshold;
+    this.armed = false;
+    this.port.onmessage = (e) => { if (e.data && e.data.arm) this.armed = true; };
+  }
+  process(inputs) {
+    if (!this.armed) return true;
+    const inp = inputs[0];
+    if (!inp || !inp.length) return true;
+    for (let c = 0; c < inp.length; c++) {
+      const ch = inp[c];
+      for (let i = 0; i < ch.length; i++) {
+        if (Math.abs(ch[i]) > this.threshold) {
+          this.armed = false;
+          this.port.postMessage({ onsetTime: currentTime + i / sampleRate, sampleRate });
+          return true;
+        }
+      }
+    }
+    return true;
+  }
+}
+registerProcessor("latency-tap", TapProcessor);
+`;
+
+async function measure(factory, sampleRate, config, label) {
+  const ctx = new AudioContext({ sampleRate, latencyHint: "interactive" });
+  await ctx.resume();
+  await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([TAP_SRC], { type: "text/javascript" })));
+
+  factory.moduleUrl = new URL(WORKLET_URL, import.meta.url).href;
+  const node = await withTimeout(
+    factory(ctx, { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] }),
+    8000, "factory");
+  await withTimeout(node.configure(config), 5000, "configure");
+  const reported = await withTimeout(node.latency(), 5000, "latency()");
+
+  const tap = new AudioWorkletNode(ctx, "latency-tap", {
+    numberOfInputs: 1, numberOfOutputs: 1, channelCount: 2, channelCountMode: "explicit",
+    outputChannelCount: [2], processorOptions: { threshold: 0.25 },
+  });
+  node.connect(tap);
+  tap.connect(ctx.destination);
+
+  // Steady state: a quiet noise bed, because a stretcher sitting on silence
+  // has nothing buffered and would report a latency it never has in use.
+  const bed = ctx.createBufferSource();
+  const bedBuffer = ctx.createBuffer(2, Math.round(sampleRate * 0.5), sampleRate);
+  for (let c = 0; c < 2; c++) {
+    const d = bedBuffer.getChannelData(c);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.02;
+  }
+  bed.buffer = bedBuffer;
+  bed.loop = true;
+  bed.connect(node);
+  bed.start();
+  await withTimeout(
+    node.schedule({ semitones: 0, active: true, output: ctx.currentTime + Math.max(0.05, reported) }),
+    5000, "schedule");
+  await new Promise((r) => setTimeout(r, 800));
+
+  // Arm the tap, then fire an impulse at a time we chose independently of
+  // `reported` — so the measurement does not inherit the number it is checking.
+  const armed = new Promise((resolve) => { tap.port.onmessage = (e) => resolve(e.data); });
+  tap.port.postMessage({ arm: true });
+
+  const impulse = ctx.createBuffer(2, 4, sampleRate);
+  for (let c = 0; c < 2; c++) { const d = impulse.getChannelData(c); d[0] = 1; d[1] = -1; }
+  const source = ctx.createBufferSource();
+  source.buffer = impulse;
+  source.connect(node);
+  const t0 = ctx.currentTime + 0.3;
+  source.start(t0);
+
+  const onset = await withTimeout(armed, 6000, "tap onset");
+  const row = {
+    label,
+    config,
+    reportedMs: reported * 1000,
+    measuredMs: (onset.onsetTime - t0) * 1000,
+    baseLatencyMs: ctx.baseLatency * 1000,
+    outputLatencyMs: ctx.outputLatency * 1000,
+    sampleRate,
+  };
+  bed.stop();
+  source.stop();
+  await ctx.close().catch(() => {});
+  return row;
+}
+
+const CONFIGS = [
+  ["extension shipping config", { blockMs: 80, intervalMs: 20, splitComputation: true }],
+  ["same, splitComputation off", { blockMs: 80, intervalMs: 20, splitComputation: false }],
+  ["blockMs 40 / intervalMs 10", { blockMs: 40, intervalMs: 10, splitComputation: true }],
+  ["blockMs 20 / intervalMs 5", { blockMs: 20, intervalMs: 5, splitComputation: true }],
+  ["blockMs 160 / intervalMs 40", { blockMs: 160, intervalMs: 40, splitComputation: true }],
+];
+
+document.getElementById("go").addEventListener("click", async () => {
+  try {
+    const factory = (await import(WORKLET_URL)).default;
+    const sampleRate = 48000;
+    log("factory:", typeof factory, "· worklet module reused as the factory module");
+
+    for (const [label, config] of CONFIGS) {
+      try {
+        const r = await measure(factory, sampleRate, config, label);
+        rows.push(r);
+        log(`${label.padEnd(30)} reported ${r.reportedMs.toFixed(1).padStart(6)} ms | measured ${r.measuredMs.toFixed(1).padStart(6)} ms`);
+      } catch (e) {
+        rows.push({ label, error: String(e) });
+        log(`${label.padEnd(30)} FAILED: ${e}`);
+      }
+    }
+
+    const first = rows.find((r) => !r.error);
+    const fmt = (v) => (first ? v.toFixed(2) + " ms" : "—");
+    document.getElementById("table").innerHTML =
+      "<h2>Results</h2><table><tr><th>configuration</th><th>reported</th><th>measured</th>" +
+      "<th>baseLatency</th><th>outputLatency</th></tr>" +
+      rows.map((r) => r.error
+        ? `<tr><td>${r.label}</td><td colspan="4">${r.error}</td></tr>`
+        : `<tr><td>${r.label}</td><td class="num">${r.reportedMs.toFixed(1)} ms</td>` +
+          `<td class="num">${r.measuredMs.toFixed(1)} ms</td>` +
+          `<td class="num">${r.baseLatencyMs.toFixed(2)} ms</td>` +
+          `<td class="num">${r.outputLatencyMs.toFixed(2)} ms</td></tr>`).join("") +
+      `</table>
+       <h2>Reading it</h2>
+       <p class="note">
+         <b>reported</b> is <code>node.latency()</code>, which the extension uses to schedule changes.<br>
+         <b>measured</b> is this page's own impulse measurement. When the two agree, the library's
+         figure is trustworthy and so is the measurement.<br><br>
+         The worklet is not the whole story. Add <code>baseLatency</code> (${fmt(first && first.baseLatencyMs)})
+         and <code>outputLatency</code> (${fmt(first && first.outputLatencyMs)}) for the platform's own
+         buffering, and note that Chrome does not document tabCapture's input buffering — an
+         end-to-end figure needs the acoustic method, not this page.
+       </p>`;
+  } catch (e) {
+    log("FATAL:", e);
+  }
+  window.__done = true;
+});
+</script>
+</body>
+</html>

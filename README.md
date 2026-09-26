@@ -8,7 +8,8 @@ Works with YouTube, Spotify Web, SoundCloud, and any other web audio source.
 
 ## Features
 
-- Real-time pitch shifting with minimal latency
+- Real-time pitch shifting — **~100 ms** of processing latency, measured rather
+  than estimated (see [Latency](#latency))
 - Adjustable range: -12 to +12 semitones
 - Preserves original tempo
 - Per-page memory: every page URL keeps its own pitch, bypass, formant and
@@ -46,6 +47,7 @@ Then load the extension in Chrome:
 npm test           # vitest
 npm run typecheck  # tsc --noEmit
 npm run dev        # content:watch + vite --watch
+npm run latency    # measure the pitch engine's latency in a browser
 ```
 
 `npm run build` needs nothing beyond the npm dependencies — there is no native
@@ -172,6 +174,43 @@ The extension is split into three contexts plus one injected script (see `docs/a
   (500 ms ramp through YouTube's player API when available, falling back to
   `<video>.volume`). They never touch playback state and never rewrite volume
   on their own (ADR-0005).
+
+### Latency
+
+Latency is set almost entirely by the engine's block size, so it is quoted as a
+measured number rather than a claim. `npm run latency` opens a probe that fires
+an impulse into the stretch worklet and timestamps when it comes out, using a
+tap worklet so the resolution is one sample rather than one animation frame.
+It also prints `node.latency()`, the figure the extension schedules against —
+when the two agree, both the library's number and the measurement are sound.
+
+| configuration | latency |
+| --- | --- |
+| `blockMs 80 / intervalMs 20 / splitComputation: true` (**shipping**) | **100 ms** |
+| `blockMs 80 / intervalMs 20 / splitComputation: false` | 80 ms |
+| `blockMs 40 / intervalMs 10 / splitComputation: true` | 50 ms |
+| `blockMs 20 / intervalMs 5 / splitComputation: true` | 25 ms |
+| `blockMs 160 / intervalMs 40 / splitComputation: true` | 200 ms |
+
+Add the platform's own buffering on top: `AudioContext.baseLatency` was 5.3 ms
+and `outputLatency` 16 ms on the machine this was measured on. Chrome does not
+document tabCapture's input buffering, so a true end-to-end figure needs an
+acoustic measurement (loopback capture, A/B against the dry signal) rather than
+anything this repo can assert.
+
+Two consequences worth knowing about:
+
+- **100 ms is enough to hear.** For singing along it is workable — you adjust
+  before you start, not during a phrase — but it is not a monitoring-grade
+  pitch shifter. Dropping to `blockMs 20` would reach 25 ms at some cost in
+  quality and CPU; that trade has not been evaluated, which is why the shipping
+  configuration is the conservative one.
+- **The accompaniment graph depends on this number.** Its 90 ms alignment delay
+  is derived from the engine's 100 ms (minus the lowband path's own ~10 ms).
+  The two constants live in different files and nothing enforces the
+  relationship, so changing `blockMs` without re-deriving the alignment makes
+  the bass and everything above 175 Hz arrive at different times. Both sites
+  carry a comment saying so.
 
 ### What is original here, and what is not
 

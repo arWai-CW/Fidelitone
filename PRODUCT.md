@@ -44,6 +44,7 @@ Fidelitone 是一個 Chrome 擴充套件：即時移調任何 Chrome 分頁正�
 - **介面語言為繁體中文**（`zh-Hant`）：popup 文案、CONTEXT.md 術語均為繁中；術語以 `CONTEXT.md` 為準（如「連線音訊」「頁面記憶」「輸出總閘」）。
 - 授權組合固定：專案程式碼與 Signalsmith Stretch 皆為 MIT（見 `LICENSE`）——ADR-0007 移除 GPLv2+ 的 Rubber Band 後，整包為單一授權，這是發布時的合規事實。
 - 技術事實：Chrome MV3，三 context（service worker / offscreen document / popup）加兩支 content script；`npm run build` 產出 `dist/` 後以 unpacked 載入。
+- 技術事實（量測）：移調引擎延遲 100 ms（`blockMs 80 / intervalMs 20 / splitComputation: true`，`npm run latency` 量得，`node.latency()` 自報值一致），另加平台 `baseLatency` 5.3 ms 與 `outputLatency` 16 ms；tabCapture 輸入緩衝 Chrome 未公開、不在量測內。100 ms 對跟唱工作流足夠，但不是監聽級——介面與文案不得宣稱「極低延遲」。
 
 ## Brand Commitments
 

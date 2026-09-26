@@ -56,3 +56,14 @@ GPL 不禁止開源，這條路是合法的。但對這個專案它是淨損失�
 - 死碼一併移除（無任何 production importer，ADR-0006 同一原則）：`src/lib/opus-encoder.ts`、`src/lib/wav-writer.ts` 與其測試。
 - `GraphRouter` 新增測試涵蓋引擎缺席時的 passthrough fallback，以及 `routeFor` 在引擎未啟動時回報 `passthrough`。
 - 實機（待驗）：開啟 YouTube、連線音訊、拖移調軌、確認「信號路徑」顯示 `Signalsmith`；開伴奏模式確認顯示 `伴奏`；開旁路確認顯示 `旁路`。
+
+## 連帶的量測：引擎延遲
+
+移除雙引擎後原本缺一個公開數據（引擎延遲）。新增 `tools/latency-probe`（`npm run latency`）量到了，結果是 **100 ms**（出貨設定 `blockMs 80 / intervalMs 20 / splitComputation: true`），且 `node.latency()` 的自報值與獨立量測值完全一致。完整表格與方法見 `docs/runtime-verification.md`。
+
+兩個後果：
+
+1. `README.md` 的「minimal latency」是錯的——已改成引用量測值。100 ms 對跟唱夠用（你是在開始前調，不是唱到一半調），但它不是監聽級的 pitch shifter。
+2. **`ACCOMPANIMENT_ALIGN_DELAY_S = 0.09` 現在有了解釋**：它是引擎 100 ms 减去低頻路徑自身約 10 ms 的差值。這兩個常數分處不同檔案、沒有任何機制維護其關聯——所以兩處都補上了警示註解，改 `blockMs` 必須重新推導對齊值，否則低頻與 175Hz 以上會相位錯開（可聽見的 comb filtering）。
+
+順帶記錄一個失敗的方法：`OfflineAudioContext` **不能用**於此函式庫。它的 worklet 靠 `port.postMessage` 握手 resolve `factory()`，而 offline render 會在主 thread 有機會處理訊息之前就跑完，節點永遠不初始化、render 出來是靜音。這是量測前先試的路徑，失敗後才改用即時 tap。

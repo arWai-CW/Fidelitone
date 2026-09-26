@@ -9,6 +9,9 @@ dist.zip
 .agents/
 skills-lock.json
 
+# staged from node_modules by tools/latency-probe/serve.mjs
+tools/latency-probe/vendor/
+
 # impeccable working files: review captures, world reference cards,
 # machine-local config (shipped DESIGN.md / .impeccable/design.json stay tracked)
 .impeccable/review/

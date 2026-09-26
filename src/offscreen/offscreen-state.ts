@@ -4,6 +4,19 @@ export type CaptureState = AudioCaptureState;
 export type SignalRoute = AudioSignalRoute;
 
 export const CROSSOVER_FREQ = 175;
+
+/**
+ * Artificial delay on the accompaniment graph's lowband path, so it arrives at
+ * the mix bus at the same time as the highband path (which runs through
+ * Signalsmith Stretch).
+ *
+ * This number is coupled to the engine's block size. Measured engine latency at
+ * blockMs 80 / intervalMs 20 / splitComputation is 100 ms; the lowband
+ * resampler path contributes roughly 10 ms, so 90 ms is the difference. Change
+ * `blockMs` in `lib/dsp/signalsmith-fallback.ts` and this has to be re-derived,
+ * or the two bands phase against each other. `npm run latency` measures the
+ * engine side.
+ */
 export const ACCOMPANIMENT_ALIGN_DELAY_S = 0.09;
 
 /**
