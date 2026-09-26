@@ -59,9 +59,7 @@ export class OffscreenController implements OffscreenControllerInterface {
     this.currentSemitones = semitones;
     // Build the engine before the capture arrives: a pitch the user can see on
     // the rail must be one the engine is actually able to apply.
-    void this.engine.ensureReady(semitones, this.preserveFormants).catch((err) =>
-      console.error("[offscreen] Engine init failed:", err),
-    );
+    void this.warmEngine();
     this.applyCurrentPitch();
     if (!this.capture.source) {
       this.capture.setPendingConnect(true);
@@ -313,6 +311,22 @@ export class OffscreenController implements OffscreenControllerInterface {
         console.error("[offscreen] Signalsmith pitch update failed:", err),
       );
     }
+  }
+
+  /**
+   * Creates the engine if it is not up yet, then re-applies the live pitch.
+   *
+   * The re-apply is the point. `ensureReady` applies whatever semitones it was
+   * called with, and it cannot be awaited from `setPitch` — that would put a
+   * worklet construction inside every slider tick. So while the engine is coming
+   * up, `applyCurrentPitch` sees `ready === false` and skips, and a drag that
+   * outruns initialisation would leave the engine on a stale semitone while the
+   * rail reads the new one. Re-applying from `currentSemitones` (rather than from
+   * a captured argument) closes that window without making anyone wait.
+   */
+  private async warmEngine(): Promise<void> {
+    await this.engine.ensureReady(this.currentSemitones, this.preserveFormants);
+    this.applyCurrentPitch();
   }
 
   async start(): Promise<void> {
