@@ -6,7 +6,7 @@ import {
 } from "../lib/dsp/rubberband-live-shifter";
 import { semitonesToPitchScale } from "../lib/dsp/math";
 import { postWorkletMessage } from "../lib/dsp/worklet-message";
-import { OUTPUT_GATE_MS, delayGate, scheduleGate } from "./output-gate";
+import { OUTPUT_GATE_MS, createOutputGate, delayGate, scheduleGate } from "./output-gate";
 
 let rubberbandModuleLoaded = false;
 let passthroughModuleLoaded = false;
@@ -214,8 +214,7 @@ export class AudioGraph {
       this.passthrough = new AudioWorkletNode(this.ctx, "passthrough");
       this.gainA = this.ctx.createGain();
       this.gainB = this.ctx.createGain();
-      this.outputGain = this.ctx.createGain();
-      this.outputGain.gain.value = 1;
+      this.outputGain = createOutputGate(this.ctx);
 
       if (wasmOk) {
         const rbInit = this.initLiveShifter(this.ctx.sampleRate, 2, semitonesToPitchScale(semitones), preserveFormants);

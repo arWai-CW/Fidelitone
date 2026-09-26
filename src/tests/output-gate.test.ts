@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { OUTPUT_GATE_MS, delayGate, scheduleGate, type GainParamLike } from "../offscreen/output-gate";
+import {
+  OUTPUT_GATE_MS,
+  createOutputGate,
+  delayGate,
+  scheduleGate,
+  type GainParamLike,
+} from "../offscreen/output-gate";
+import { fakeContext, reaches } from "./helpers/fake-web-audio";
 
 function param(value: number): GainParamLike & {
   cancelScheduledValues: ReturnType<typeof vi.fn>;
@@ -51,5 +58,19 @@ describe("output gate", () => {
 
   it("resolves on its own after the ramp", async () => {
     await expect(delayGate(10)).resolves.toBeUndefined();
+  });
+});
+
+// A gate that nothing connects to is silence with no error: the graph reports
+// `connected: true`, every route "ends at the output gate", and no sound comes
+// out of the extension. (ADR-0004 step 4.)
+describe("master gate wiring", () => {
+  it("opens at unity gain and reaches ctx.destination", () => {
+    const ctx = fakeContext();
+    const gate = createOutputGate(ctx as unknown as BaseAudioContext);
+
+    expect(gate.gain.value).toBe(1);
+    expect(gate.connect).toHaveBeenCalledWith(ctx.destination);
+    expect(reaches(gate, ctx.destination)).toBe(true);
   });
 });

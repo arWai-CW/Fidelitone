@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { GraphRouter } from "../offscreen/graph-router";
+import { createOutputGate } from "../offscreen/output-gate";
 import type { AudioGraph } from "../offscreen/audio-graph";
 import type { EngineSwitching } from "../offscreen/engine-switching";
 import type { AccompanimentGraph } from "../offscreen/accompaniment";
+import { fakeContext, fakeNode as wiredNode, reaches } from "./helpers/fake-web-audio";
 
 function fakeNode(): AudioWorkletNode {
   return { connect: vi.fn(), disconnect: vi.fn(), port: { postMessage: vi.fn() } } as unknown as AudioWorkletNode;
@@ -146,5 +148,65 @@ describe("GraphRouter", () => {
 
     expect(connectsToGate).toBe(true);
     expect(destination.connect).not.toHaveBeenCalled();
+  });
+
+  // The router stops at the gate, so the gate must carry the signal the rest of
+  // the way. If it does not, every route "succeeds" and the extension is silent.
+  it("reaches ctx.destination through the master gate in every route", () => {
+    const ctx = fakeContext();
+    const gate = createOutputGate(ctx as unknown as BaseAudioContext);
+    const destination = ctx.destination;
+
+    const passthrough = wiredNode();
+    const rbNode = wiredNode();
+    const gainA = wiredNode();
+    const gainB = wiredNode();
+    const signalNode = wiredNode();
+
+    const graph = {
+      ready: true,
+      rubberbandReadyStatus: true,
+      rubberbandNode: rbNode,
+      passthroughNode: passthrough,
+      gainANode: gainA,
+      gainBNode: gainB,
+      requireContext: () => ({ destination, currentTime: 0 }),
+      requireOutput: () => gate,
+      requirePassthrough: () => passthrough,
+      disconnectNode: (node: { disconnect?: () => void } | null) => node?.disconnect?.(),
+    } as unknown as AudioGraph;
+
+    const engine = {
+      signalsmithAvailable: true,
+      signalsmithNode: signalNode,
+      effectiveEngine: vi.fn().mockReturnValue("signalsmith"),
+      setGains: vi.fn(),
+    } as unknown as EngineSwitching;
+
+    const accompNodes = {
+      crossover: wiredNode(),
+      lowband: wiredNode(),
+      signalsmith: wiredNode(),
+      limiter: wiredNode(),
+      delay: wiredNode(),
+      mixBus: wiredNode(),
+    };
+    const accompaniment = {
+      ready: true,
+      enabled: true,
+      nodes: accompNodes,
+    } as unknown as AccompanimentGraph;
+
+    const source = wiredNode();
+    const router = new GraphRouter(graph, engine, accompaniment, () => source as unknown as MediaStreamAudioSourceNode);
+
+    expect(router.connectSource({ bypass: true, accompanimentMode: false })).toBe(true);
+    expect(reaches(source, destination)).toBe(true);
+
+    expect(router.connectSource({ bypass: false, accompanimentMode: false })).toBe(true);
+    expect(reaches(source, destination)).toBe(true);
+
+    expect(router.connectSource({ bypass: false, accompanimentMode: true })).toBe(true);
+    expect(reaches(source, destination)).toBe(true);
   });
 });

@@ -5,6 +5,16 @@
 /** Fade length for a handover; short enough to read as one continuous stream. */
 export const OUTPUT_GATE_MS = 25;
 
+export function createOutputGate(ctx: BaseAudioContext): GainNode {
+  const gate = ctx.createGain();
+  gate.gain.value = 1;
+  // Every route ends at this node, so the gate must be the last hop to the
+  // speakers. Without this edge the whole extension is silent while reporting
+  // `connected: true`.
+  gate.connect(ctx.destination);
+  return gate;
+}
+
 export interface GainParamLike {
   value: number;
   cancelScheduledValues(time: number): void;
