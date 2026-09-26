@@ -1,12 +1,13 @@
-// Pure helpers for per-origin site memory and tab-follow decisions.
-// ADR-0004: storage is sparse (only values that differ from SITE_DEFAULTS),
-// the identity of a site is its origin, and capture decisions are derived
-// from plain data so they can be unit tested without chrome.* APIs.
+// Pure helpers for per-page memory and tab-follow decisions.
+// ADR-0004, amended: storage is sparse (only values that differ from
+// PAGE_DEFAULTS), the identity of a record is the page URL (origin + path +
+// query, no fragment), and capture decisions are derived from plain data so
+// they can be unit tested without chrome.* APIs.
 
 import type { Engine, ProcessingSettings } from "./audio-state";
 
-/** Sparse per-origin overrides. Absent keys mean "use SITE_DEFAULTS". */
-export interface SiteSettings {
+/** Sparse per-page overrides. Absent keys mean "use PAGE_DEFAULTS". */
+export interface PageSettings {
   pitch?: number;
   bypass?: boolean;
   preserveFormants?: boolean;
@@ -14,13 +15,13 @@ export interface SiteSettings {
   engine?: Engine;
 }
 
-/** A site record resolved against the defaults (the unit applied on switch). */
-export type ResolvedSiteSettings = ProcessingSettings;
+/** A page record resolved against the defaults (the unit applied on switch). */
+export type ResolvedPageSettings = ProcessingSettings;
 
 export const DEFAULT_ENGINE: Engine = "signalsmith";
 
-/** Clean defaults applied to a site that has never been configured. */
-export const SITE_DEFAULTS: ResolvedSiteSettings = {
+/** Clean defaults applied to a page that has never been configured. */
+export const PAGE_DEFAULTS: ResolvedPageSettings = {
   pitch: 0,
   bypass: false,
   preserveFormants: false,
@@ -28,14 +29,14 @@ export const SITE_DEFAULTS: ResolvedSiteSettings = {
   engine: DEFAULT_ENGINE,
 };
 
-/** Keys owned by a site memory record. */
-export const SITE_SETTING_KEYS = [
+/** Keys owned by a page memory record. */
+export const PAGE_SETTING_KEYS = [
   "pitch",
   "bypass",
   "preserveFormants",
   "accompanimentMode",
   "engine",
-] as const satisfies ReadonlyArray<keyof SiteSettings>;
+] as const satisfies ReadonlyArray<keyof PageSettings>;
 
 /** Flat keys written before ADR-0004; removed once on upgrade. */
 export const LEGACY_SETTING_KEYS = [
@@ -47,33 +48,56 @@ export const LEGACY_SETTING_KEYS = [
   "engine",
 ] as const;
 
-/** Keys that stay global (never namespaced per origin). */
+/**
+ * Origin-scoped records written before memory moved to URLs: an origin key
+ * cannot be mapped onto any single page, so it is dropped rather than kept as
+ * a fallback that would make two videos share a pitch again.
+ */
+export const LEGACY_RECORD_PREFIX = "site:";
+
+export function isLegacyRecordKey(key: string): boolean {
+  return key.startsWith(LEGACY_RECORD_PREFIX);
+}
+
+/** Keys that stay global (never namespaced per page). */
 export const GLOBAL_SETTING_KEYS = ["snapToInteger"] as const;
 
 export const SNAP_TO_INTEGER_DEFAULT = true;
 
-export function siteStorageKey(origin: string): string {
-  return `site:${origin}`;
+/** Storage key for one page's record. */
+export function pageStorageKey(page: string): string {
+  return `page:${page}`;
 }
 
 function isSupportedScheme(protocol: string): boolean {
   return protocol === "http:" || protocol === "https:";
 }
 
-/** Derives an origin (scheme + host + port) from a tab URL, or null. */
-export function originKey(url: string | null | undefined): string | null {
+function parseHttpUrl(url: string | null | undefined): URL | null {
   if (!url) return null;
   try {
     const parsed = new URL(url);
-    return isSupportedScheme(parsed.protocol) ? parsed.origin : null;
+    return isSupportedScheme(parsed.protocol) ? parsed : null;
   } catch {
     return null;
   }
 }
 
+/**
+ * The memory identity of a page: origin + path + query, without the fragment.
+ * Query matters (`watch?v=a` vs `watch?v=b`), the fragment does not — it only
+ * carries in-page position and would split one video into many records.
+ */
+export function pageKey(url: string | null | undefined): string | null {
+  const parsed = parseHttpUrl(url);
+  if (!parsed) return null;
+  parsed.hash = "";
+  return parsed.toString();
+}
+
 /** True when a tab URL could be captured by tabCapture (http/https only). */
 export function isSupportedTabUrl(url: string | null | undefined): boolean {
-  return originKey(url) !== null;
+  return parseHttpUrl(url) !== null;
 }
 
 function isEngine(value: unknown): value is Engine {
@@ -81,44 +105,44 @@ function isEngine(value: unknown): value is Engine {
 }
 
 /** Merges sparse stored overrides onto the clean defaults. */
-export function resolveSiteSettings(overrides: unknown): ResolvedSiteSettings {
+export function resolvePageSettings(overrides: unknown): ResolvedPageSettings {
   const record = (overrides && typeof overrides === "object" ? overrides : {}) as Record<string, unknown>;
-  const pitch = typeof record.pitch === "number" && Number.isFinite(record.pitch) ? record.pitch : SITE_DEFAULTS.pitch;
+  const pitch = typeof record.pitch === "number" && Number.isFinite(record.pitch) ? record.pitch : PAGE_DEFAULTS.pitch;
   return {
     pitch,
     bypass: record.bypass === true,
     preserveFormants: record.preserveFormants === true,
     accompanimentMode: record.accompanimentMode === true,
-    engine: isEngine(record.engine) ? record.engine : SITE_DEFAULTS.engine,
+    engine: isEngine(record.engine) ? record.engine : PAGE_DEFAULTS.engine,
   };
 }
 
 /** Drops every value that equals the default, so storage stays sparse. */
-export function diffAgainstDefaults(next: ResolvedSiteSettings): SiteSettings {
-  const sparse: SiteSettings = {};
-  if (next.pitch !== SITE_DEFAULTS.pitch) sparse.pitch = next.pitch;
-  if (next.bypass !== SITE_DEFAULTS.bypass) sparse.bypass = next.bypass;
-  if (next.preserveFormants !== SITE_DEFAULTS.preserveFormants) {
+export function diffAgainstDefaults(next: ResolvedPageSettings): PageSettings {
+  const sparse: PageSettings = {};
+  if (next.pitch !== PAGE_DEFAULTS.pitch) sparse.pitch = next.pitch;
+  if (next.bypass !== PAGE_DEFAULTS.bypass) sparse.bypass = next.bypass;
+  if (next.preserveFormants !== PAGE_DEFAULTS.preserveFormants) {
     sparse.preserveFormants = next.preserveFormants;
   }
-  if (next.accompanimentMode !== SITE_DEFAULTS.accompanimentMode) {
+  if (next.accompanimentMode !== PAGE_DEFAULTS.accompanimentMode) {
     sparse.accompanimentMode = next.accompanimentMode;
   }
-  if (next.engine !== SITE_DEFAULTS.engine) sparse.engine = next.engine;
+  if (next.engine !== PAGE_DEFAULTS.engine) sparse.engine = next.engine;
   return sparse;
 }
 
 /** Applies a single edit on top of stored overrides and re-sparsifies. */
-export function writeSiteSetting(
+export function writePageSetting(
   current: unknown,
-  patch: Partial<ResolvedSiteSettings>,
-): SiteSettings {
-  return diffAgainstDefaults({ ...resolveSiteSettings(current), ...patch });
+  patch: Partial<ResolvedPageSettings>,
+): PageSettings {
+  return diffAgainstDefaults({ ...resolvePageSettings(current), ...patch });
 }
 
 /** True when a record carries no non-default value (the key can be deleted). */
-export function isEmptySiteSettings(overrides: unknown): boolean {
-  return Object.keys(diffAgainstDefaults(resolveSiteSettings(overrides))).length === 0;
+export function isEmptyPageSettings(overrides: unknown): boolean {
+  return Object.keys(diffAgainstDefaults(resolvePageSettings(overrides))).length === 0;
 }
 
 export type CaptureSkipReason =
@@ -126,10 +150,10 @@ export type CaptureSkipReason =
   | "no-capture"
   | "same-tab"
   | "missing-url"
-  | "unsupported-origin";
+  | "unsupported-url";
 
 export type CapturePlan =
-  | { action: "switch"; tabId: number; origin: string }
+  | { action: "switch"; tabId: number; page: string }
   | { action: "skip"; reason: CaptureSkipReason };
 
 export interface TabActivationInput {
@@ -149,24 +173,26 @@ export function planTabActivation(input: TabActivationInput): CapturePlan {
   if (!input.hasCapture) return { action: "skip", reason: "no-capture" };
   if (input.capturedTabId === input.tabId) return { action: "skip", reason: "same-tab" };
 
-  const origin = originKey(input.tabUrl);
   if (!input.tabUrl) return { action: "skip", reason: "missing-url" };
-  if (!origin) return { action: "skip", reason: "unsupported-origin" };
+  const page = pageKey(input.tabUrl);
+  if (!page) return { action: "skip", reason: "unsupported-url" };
 
-  return { action: "switch", tabId: input.tabId, origin };
+  return { action: "switch", tabId: input.tabId, page };
 }
 
 export interface CaptureIdentity {
   tabId: number | null;
-  origin: string | null;
+  /** Page URL the audio belongs to (see pageKey). */
+  page: string | null;
 }
 
 /**
  * The captured tab and the active tab can disagree along two axes:
- * settings follow origin (lock), audio follows tab (banner).
+ * settings follow the page URL (lock), audio follows the tab (banner).
+ * Two tabs on the same URL share one record, so only a different URL locks.
  */
 export function isSettingsMismatch(captured: CaptureIdentity, active: CaptureIdentity): boolean {
-  return captured.origin !== active.origin;
+  return captured.page !== active.page;
 }
 
 export function isCrossTabCapture(captured: CaptureIdentity, active: CaptureIdentity): boolean {

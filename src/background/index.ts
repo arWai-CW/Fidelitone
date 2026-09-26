@@ -4,14 +4,15 @@
 
 import {
   LEGACY_SETTING_KEYS,
+  isLegacyRecordKey,
   nextBadge,
-  originKey,
+  pageKey,
   planTabActivation,
-  resolveSiteSettings,
-  siteStorageKey,
+  resolvePageSettings,
+  pageStorageKey,
   type BadgeState,
-  type ResolvedSiteSettings,
-} from "../lib/site-settings";
+  type ResolvedPageSettings,
+} from "../lib/page-settings";
 import { TransitionQueue } from "../lib/transition-queue";
 import type { CaptureState } from "../lib/audio-state";
 import {
@@ -34,6 +35,8 @@ const FOLLOW_DEBOUNCE_MS = 400;
 const STATE_TIMEOUT_MS = 4000;
 const HANDOVER_TIMEOUT_MS = 30000;
 const SESSION_STORAGE_KEY = "captureSession";
+/** Session-scoped marker so the full legacy sweep runs once per browser session. */
+const LEGACY_CLEANUP_FLAG = "legacySettingsCleanupDone";
 
 let session: CaptureSession = EMPTY_SESSION;
 let activeTabId: number | null = null;
@@ -51,6 +54,16 @@ function storageGet<T>(keys: string[]): Promise<T> {
       const err = chrome.runtime.lastError;
       if (err) reject(new Error(err.message));
       else resolve(data as T);
+    });
+  });
+}
+
+function storageGetAll(): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get(null, (data) => {
+      const err = chrome.runtime.lastError;
+      if (err) reject(new Error(err.message));
+      else resolve((data ?? {}) as Record<string, unknown>);
     });
   });
 }
@@ -169,10 +182,10 @@ async function getOffscreenState(): Promise<CaptureState | null> {
   return null;
 }
 
-async function readSiteSettings(origin: string): Promise<ResolvedSiteSettings> {
-  const key = siteStorageKey(origin);
+async function readPageSettings(page: string): Promise<ResolvedPageSettings> {
+  const key = pageStorageKey(page);
   const data = await storageGet<Record<string, unknown>>([key]);
-  return resolveSiteSettings(data[key]);
+  return resolvePageSettings(data[key]);
 }
 
 async function setBadgeText(text: string): Promise<void> {
@@ -232,21 +245,21 @@ async function persistSession(): Promise<void> {
  * gate → settings → stream → gate, and keep the old capture untouched whenever
  * any step fails. Enqueued so a rapid follow never overlaps a popup request.
  */
-function handover(tabId: number, origin: string): Promise<RuntimeResponse> {
-  return captureQueue.run(() => performHandover(tabId, origin));
+function handover(tabId: number, page: string): Promise<RuntimeResponse> {
+  return captureQueue.run(() => performHandover(tabId, page));
 }
 
-async function performHandover(tabId: number, origin: string): Promise<RuntimeResponse> {
+async function performHandover(tabId: number, page: string): Promise<RuntimeResponse> {
   try {
     await ensureOffscreen();
     const streamId = await getMediaStreamId(tabId);
-    const settings = await readSiteSettings(origin);
+    const settings = await readPageSettings(page);
     const response = await sendToOffscreen(
-      { type: "SWITCH_CAPTURE", streamId, tabId, origin, settings },
+      { type: "SWITCH_CAPTURE", streamId, tabId, page, settings },
       HANDOVER_TIMEOUT_MS,
     );
     if (response?.ok) {
-      session = withTarget(session, tabId, origin);
+      session = withTarget(session, tabId, page);
       await persistSession();
       await renderBadge();
     }
@@ -256,22 +269,22 @@ async function performHandover(tabId: number, origin: string): Promise<RuntimeRe
   }
 }
 
-/** Settings-only re-apply for the captured tab navigating to a new origin. */
-function reapplySettings(tabId: number, origin: string): Promise<void> {
-  return captureQueue.run(() => performReapplySettings(tabId, origin));
+/** Settings-only re-apply for the captured tab navigating to a new page. */
+function reapplySettings(tabId: number, page: string): Promise<void> {
+  return captureQueue.run(() => performReapplySettings(tabId, page));
 }
 
-async function performReapplySettings(tabId: number, origin: string): Promise<void> {
-  const settings = await readSiteSettings(origin);
+async function performReapplySettings(tabId: number, page: string): Promise<void> {
+  const settings = await readPageSettings(page);
   const response = await sendToOffscreen(
-    { type: "SWITCH_CAPTURE", streamId: null, tabId, origin, settings },
+    { type: "SWITCH_CAPTURE", streamId: null, tabId, page, settings },
     HANDOVER_TIMEOUT_MS,
   );
   if (!response?.ok) {
     console.warn("[background] Settings re-apply failed:", response?.error);
     return;
   }
-  session = withTarget(session, tabId, origin);
+  session = withTarget(session, tabId, page);
   await persistSession();
   await renderBadge();
 }
@@ -316,15 +329,15 @@ async function runFollow(tabId: number): Promise<void> {
   });
 
   if (plan.action === "skip") {
-    // Same tab, new origin: keep the stream and swap the remembered settings.
+    // Same tab, new page: keep the stream and swap the remembered settings.
     if (plan.reason === "same-tab" && hasActiveCapture(session)) {
-      const origin = originKey(tab.url);
-      if (origin && origin !== session.capturedOrigin) await reapplySettings(tab.id, origin);
+      const page = pageKey(tab.url);
+      if (page && page !== session.capturedPage) await reapplySettings(tab.id, page);
     }
     return;
   }
 
-  const response = await handover(plan.tabId, plan.origin);
+  const response = await handover(plan.tabId, plan.page);
   if (!response?.ok) console.warn("[background] Follow aborted, keeping current capture:", response?.error);
 }
 
@@ -345,15 +358,28 @@ function scheduleFollow(tabId: number): void {
 
 /* --------------------------------------------------------------- lifecycle */
 
-/** Idempotent: runs on every wake, removes pre-ADR-0004 flat keys once. */
+/**
+ * Idempotent, runs once per browser session: drops the flat keys written
+ * before ADR-0004 and the origin-scoped `site:` records superseded when
+ * memory moved to page URLs (an origin maps onto no single page, so keeping
+ * them would let two videos share a pitch again). The enumeration is guarded
+ * by a session flag so a wake-up does not read every stored page record.
+ */
 async function cleanupLegacyKeys(): Promise<void> {
   try {
-    const data = await storageGet<Record<string, unknown>>([...LEGACY_SETTING_KEYS]);
-    const stale = LEGACY_SETTING_KEYS.filter((key) => Object.hasOwn(data, key));
+    const marker = await sessionGet<Record<string, unknown>>([LEGACY_CLEANUP_FLAG]);
+    if (marker[LEGACY_CLEANUP_FLAG]) return;
+
+    const data = await storageGetAll();
+    const stale = [
+      ...LEGACY_SETTING_KEYS.filter((key) => Object.hasOwn(data, key)),
+      ...Object.keys(data).filter(isLegacyRecordKey),
+    ];
     if (stale.length > 0) {
-      await storageRemove([...stale]);
+      await storageRemove(stale);
       console.log("[background] Removed legacy settings:", stale.join(", "));
     }
+    await sessionSet({ [LEGACY_CLEANUP_FLAG]: true });
   } catch (err) {
     console.warn("[background] Legacy cleanup failed:", err);
   }
@@ -394,7 +420,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       connected: msg.connected === true,
       captureLost: msg.captureLost === true,
       tabId: typeof msg.tabId === "number" ? msg.tabId : null,
-      origin: typeof msg.origin === "string" ? msg.origin : null,
+      page: typeof msg.page === "string" ? msg.page : null,
     });
     void persistSession();
     void renderBadge();
@@ -413,9 +439,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   void (async (): Promise<RuntimeResponse> => {
     if (typeof tabId !== "number") return { ok: false, error: "A tab id is required" };
     const tab = await getTab(tabId);
-    const origin = originKey(tab?.url);
-    if (!origin) return { ok: false, error: "此分頁不支援擷取（僅限 http/https）" };
-    return handover(tabId, origin);
+    const page = pageKey(tab?.url);
+    if (!page) return { ok: false, error: "此分頁不支援擷取（僅限 http/https）" };
+    return handover(tabId, page);
   })()
     .then(sendResponse)
     .catch((err) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }));
@@ -430,7 +456,11 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   // Only the captured tab matters here; activations are covered by onActivated.
-  if (!changeInfo.url || session.capturedTabId !== tabId) return;
+  // URL is the obvious trigger. Title covers same-document navigation
+  // (history.pushState), which swaps the page URL inside the tab without
+  // leaving the origin: the listener does not trust changeInfo, runFollow
+  // re-reads tab.url and skips when the page key is unchanged.
+  if ((!changeInfo.url && !changeInfo.title) || session.capturedTabId !== tabId) return;
   scheduleFollow(tabId);
 });
 

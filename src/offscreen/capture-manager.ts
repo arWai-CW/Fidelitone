@@ -19,7 +19,7 @@ export class CaptureManager {
   private activeStream: MediaStream | null = null;
   private _pendingConnect = false;
   private _captureLost = false;
-  private _target: CaptureTarget = { tabId: null, origin: null };
+  private _target: CaptureTarget = { tabId: null, page: null };
 
   constructor(
     private graph: AudioGraph,
@@ -47,8 +47,8 @@ export class CaptureManager {
     return this._target.tabId;
   }
 
-  get origin(): string | null {
-    return this._target.origin;
+  get page(): string | null {
+    return this._target.page;
   }
 
   setPendingConnect(value: boolean): void {
@@ -57,7 +57,7 @@ export class CaptureManager {
 
   /** Re-attributes the capture (settings re-apply on the same stream). */
   setTarget(target: CaptureTarget): void {
-    this._target = { tabId: target.tabId, origin: target.origin };
+    this._target = { tabId: target.tabId, page: target.page };
     this.emit();
   }
 
@@ -66,7 +66,7 @@ export class CaptureManager {
       connected: this.connected,
       captureLost: this._captureLost,
       tabId: this._target.tabId,
-      origin: this._target.origin,
+      page: this._target.page,
     });
   }
 
@@ -104,7 +104,7 @@ export class CaptureManager {
       this._source = replacementSource;
       this.activeStream = stream;
       this._captureLost = false;
-      this._target = target ? { tabId: target.tabId, origin: target.origin } : previousTarget;
+      this._target = target ? { tabId: target.tabId, page: target.page } : previousTarget;
       if (!this.callbacks.connectSource()) throw new Error("Unable to connect replacement capture");
 
       oldSource?.disconnect();
@@ -136,7 +136,7 @@ export class CaptureManager {
     this.activeStream = null;
     this._pendingConnect = false;
     if (clearCaptureLost) this._captureLost = false;
-    this._target = { tabId: null, origin: null };
+    this._target = { tabId: null, page: null };
     this.emit();
   }
 

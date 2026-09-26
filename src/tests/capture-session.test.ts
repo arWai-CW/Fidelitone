@@ -7,7 +7,7 @@ import {
   sessionFromState,
   withTarget,
 } from "../background/capture-session";
-import { BADGE_COLORS, deriveBadge } from "../lib/site-settings";
+import { BADGE_COLORS, deriveBadge } from "../lib/page-settings";
 import type { CaptureState } from "../lib/audio-state";
 
 function state(overrides: Partial<CaptureState> = {}): CaptureState {
@@ -19,7 +19,7 @@ function state(overrides: Partial<CaptureState> = {}): CaptureState {
     accompanimentMode: false,
     engine: "signalsmith",
     tabId: 5,
-    origin: "https://www.youtube.com",
+    page: "https://www.youtube.com",
     ...overrides,
   };
 }
@@ -40,7 +40,7 @@ describe("capture session mirror", () => {
       connected: true,
       captureLost: false,
       tabId: 5,
-      origin: "https://www.youtube.com",
+      page: "https://www.youtube.com",
     });
     expect(hasActiveCapture(started)).toBe(true);
 
@@ -48,7 +48,7 @@ describe("capture session mirror", () => {
       connected: false,
       captureLost: true,
       tabId: 5,
-      origin: "https://www.youtube.com",
+      page: "https://www.youtube.com",
     });
     expect(hasActiveCapture(lost)).toBe(false);
     expect(lost.capturedTabId).toBe(5);
@@ -57,7 +57,7 @@ describe("capture session mirror", () => {
       connected: false,
       captureLost: false,
       tabId: null,
-      origin: null,
+      page: null,
     });
     expect(stopped).toEqual(EMPTY_SESSION);
   });
@@ -65,9 +65,9 @@ describe("capture session mirror", () => {
   it("trusts the offscreen snapshot when reconciling", () => {
     const stale = withTarget(EMPTY_SESSION, 1, "https://a.com");
 
-    expect(sessionFromState(stale, state({ tabId: 9, origin: "https://b.com" }))).toEqual({
+    expect(sessionFromState(stale, state({ tabId: 9, page: "https://b.com" }))).toEqual({
       capturedTabId: 9,
-      capturedOrigin: "https://b.com",
+      capturedPage: "https://b.com",
       connected: true,
       captureLost: false,
     });
@@ -81,9 +81,9 @@ describe("capture session mirror", () => {
 
   it("keeps the last identity when the snapshot omits it", () => {
     const stale = withTarget(EMPTY_SESSION, 4, "https://a.com");
-    const next = sessionFromState(stale, state({ tabId: undefined, origin: undefined }));
+    const next = sessionFromState(stale, state({ tabId: undefined, page: undefined }));
     expect(next.capturedTabId).toBe(4);
-    expect(next.capturedOrigin).toBe("https://a.com");
+    expect(next.capturedPage).toBe("https://a.com");
   });
 
   it("drives the four badge states from the mirror", () => {
@@ -101,7 +101,7 @@ describe("capture session mirror", () => {
       connected: false,
       captureLost: true,
       tabId: 5,
-      origin: "https://a.com",
+      page: "https://a.com",
     });
     expect(deriveBadge(badgeInputFor(lost, 8))).toEqual({ text: "!", color: BADGE_COLORS.red });
     expect(deriveBadge(badgeInputFor(EMPTY_SESSION, 8))).toEqual({ text: "", color: null });

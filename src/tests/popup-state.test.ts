@@ -83,36 +83,44 @@ describe("popup state", () => {
     expect(createPopupState().selectedEngine).toBe("signalsmith");
   });
 
-  it("locks controls only when the active tab sits on another origin", () => {
+  it("locks controls only when the active tab sits on another page", () => {
+    const videoA = "https://www.youtube.com/watch?v=abc";
+    const videoB = "https://www.youtube.com/watch?v=def";
     const base = setConnected(
-      setActiveTab(createPopupState(), { id: 1, origin: "https://a.com" }),
+      setActiveTab(createPopupState(), { id: 1, page: videoA }),
       true,
     );
-    const capturing = applyCaptureState(base, capture({ tabId: 1, origin: "https://a.com" }));
+    const capturing = applyCaptureState(base, capture({ tabId: 1, page: videoA }));
     expect(isSettingsLocked(capturing)).toBe(false);
     expect(isProcessingLocked(capturing)).toBe(false);
 
-    const sameOriginOtherTab = applyCaptureState(
-      capturing,
-      capture({ tabId: 7, origin: "https://a.com" }),
-    );
-    expect(isSettingsLocked(sameOriginOtherTab)).toBe(false);
-    expect(isProcessingLocked(sameOriginOtherTab)).toBe(false);
+    // Another tab on the very same URL shares the record, so editing stays open.
+    const samePageOtherTab = applyCaptureState(capturing, capture({ tabId: 7, page: videoA }));
+    expect(isSettingsLocked(samePageOtherTab)).toBe(false);
+    expect(isProcessingLocked(samePageOtherTab)).toBe(false);
 
-    const otherOrigin = applyCaptureState(capturing, capture({ tabId: 1, origin: "https://b.com" }));
+    // Same site, another video: another record, so the controls follow the capture.
+    const otherVideo = applyCaptureState(capturing, capture({ tabId: 1, page: videoB }));
+    expect(isSettingsLocked(otherVideo)).toBe(true);
+    expect(isProcessingLocked(otherVideo)).toBe(true);
+
+    const otherOrigin = applyCaptureState(
+      capturing,
+      capture({ tabId: 1, page: "https://open.spotify.com/track/xyz" }),
+    );
     expect(isSettingsLocked(otherOrigin)).toBe(true);
     expect(isProcessingLocked(otherOrigin)).toBe(true);
   });
 
   it("shows the divergence banner only while the audio is elsewhere", () => {
     const base = setConnected(
-      setActiveTab(createPopupState(), { id: 1, origin: "https://a.com" }),
+      setActiveTab(createPopupState(), { id: 1, page: "https://a.com" }),
       true,
     );
-    const elsewhere = applyCaptureState(base, capture({ tabId: 7, origin: "https://a.com" }));
+    const elsewhere = applyCaptureState(base, capture({ tabId: 7, page: "https://a.com" }));
     expect(showDivergenceBanner(elsewhere)).toBe(true);
 
-    const sameTab = applyCaptureState(base, capture({ tabId: 1, origin: "https://a.com" }));
+    const sameTab = applyCaptureState(base, capture({ tabId: 1, page: "https://a.com" }));
     expect(showDivergenceBanner(sameTab)).toBe(false);
 
     expect(showDivergenceBanner(setConnected(elsewhere, false))).toBe(false);
@@ -120,32 +128,32 @@ describe("popup state", () => {
 
   it("forgets the captured identity when the capture stops", () => {
     const base = setConnected(
-      setActiveTab(createPopupState(), { id: 1, origin: "https://a.com" }),
+      setActiveTab(createPopupState(), { id: 1, page: "https://a.com" }),
       true,
     );
-    const state = applyCaptureState(base, capture({ tabId: 3, origin: "https://a.com" }));
+    const state = applyCaptureState(base, capture({ tabId: 3, page: "https://a.com" }));
     expect(state.capturedTabId).toBe(3);
-    expect(state.capturedOrigin).toBe("https://a.com");
+    expect(state.capturedPage).toBe("https://a.com");
 
     const stopped = setConnected(state, false);
     expect(stopped.capturedTabId).toBeNull();
-    expect(stopped.capturedOrigin).toBeNull();
+    expect(stopped.capturedPage).toBeNull();
   });
 
   it("tracks the active tab independently of the capture", () => {
-    const state = setActiveTab(createPopupState(), { id: 42, origin: "https://b.com" });
+    const state = setActiveTab(createPopupState(), { id: 42, page: "https://b.com" });
     expect(state.activeTabId).toBe(42);
-    expect(state.activeOrigin).toBe("https://b.com");
-    expect(setActiveTab(state, { id: 43, origin: null }).activeOrigin).toBeNull();
+    expect(state.activePage).toBe("https://b.com");
+    expect(setActiveTab(state, { id: 43, page: null }).activePage).toBeNull();
   });
 
   it("records the capture identity even when GET_STATE is unavailable", () => {
     const state = setCaptureIdentity(createPopupState(), {
       id: 9,
-      origin: "https://www.youtube.com",
+      page: "https://www.youtube.com",
     });
     expect(state.capturedTabId).toBe(9);
-    expect(state.capturedOrigin).toBe("https://www.youtube.com");
-    expect(setCaptureIdentity(state, { id: null, origin: null }).capturedTabId).toBeNull();
+    expect(state.capturedPage).toBe("https://www.youtube.com");
+    expect(setCaptureIdentity(state, { id: null, page: null }).capturedTabId).toBeNull();
   });
 });

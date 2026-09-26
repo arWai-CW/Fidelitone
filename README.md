@@ -11,9 +11,9 @@ Works with YouTube, Spotify Web, SoundCloud, and any other web audio source.
 - Real-time pitch shifting with minimal latency
 - Adjustable range: -12 to +12 semitones
 - Preserves original tempo
-- Per-site memory: every origin keeps its own pitch, bypass, formant,
+- Per-page memory: every page URL keeps its own pitch, bypass, formant,
   accompaniment and engine settings (sparse — only non-default values are stored)
-- Follows the tab you switch to, and applies that site's remembered settings
+- Follows the tab you switch to, and applies that page's remembered settings
 - Toolbar badge shows where the audio is coming from (`ON` / `ON·` / `!`)
 - No external audio processing required
 - Works on any website with audio playback
@@ -58,32 +58,38 @@ Toolbar badge states:
 | red `!` | The capture was lost (tab closed or stream ended) |
 
 
-## Per-site memory and tab following
+## Per-page memory and tab following
 
-Settings are remembered **per origin** (`scheme + host + port`), so
-`https://www.youtube.com` and `https://open.spotify.com` each keep their own
-pitch and engine, while two videos on the same site share one record.
+Settings are remembered **per page URL** (`scheme + host + port + path + query`,
+without the fragment), so `https://www.youtube.com/watch?v=abc` and
+`https://www.youtube.com/watch?v=def` — same site, different videos — keep
+independent pitches, while the very same URL opened in two tabs shares one record.
 
 - Storage is sparse: only values that differ from the defaults are written, so a
-  site you have never tweaked always comes back at `0 st` / Signalsmith / bypass
+  page you have never tweaked always comes back at `0 st` / Signalsmith / bypass
   off. Returning a value to its default deletes the field, and an all-default
   record deletes the key.
-- `snapToInteger` is a global interface preference and is not remembered per site.
-- Keys live in `chrome.storage.local` under `site:<origin>`.
+- `snapToInteger` is a global interface preference and is not remembered per page.
+- Keys live in `chrome.storage.local` under `page:<url>`. Records written by the
+  previous origin-based build (`site:<origin>`) are removed on upgrade — an origin
+  maps onto no single page, and keeping one would let two videos share a pitch again.
 
 What happens when you change tabs:
 
 - While a capture is running, switching tabs moves the capture to the newly
-  active tab (debounced 400 ms) and applies that origin's settings. Switching to
+  active tab (debounced 400 ms) and applies that page's settings. Switching to
   a tab that cannot be captured (Chrome pages, no permission, no audio host)
   **leaves the current capture untouched**.
-- Navigating the captured tab to a different origin keeps the stream and re-reads
-  settings for the new origin. Same-site SPA navigation (changing a video or a
-  song) does not re-send anything.
-- If the audio belongs to another tab on the same site, the popup shows a banner
-  with that tab's title and a **改擷取此分頁** button — settings stay editable
-  because they are shared per origin. If the other tab is on a *different*
-  origin, all controls are locked until you re-capture.
+- Navigating the captured tab to a different URL — another site, or another video
+  on the same site — keeps the stream and re-reads settings for the new page.
+  Re-touching the same page (a `#fragment` jump, a title-only update) re-sends
+  nothing.
+- If the audio belongs to another tab, the popup shows a banner with that tab's
+  title and a **改擷取此分頁** button. Both tabs on the same URL: the banner shows
+  and the controls stay editable, because they share one record. A different page:
+  the controls are **locked** until you re-capture, because that record is not
+  what you are hearing. While the service worker is still following the switch
+  (400 ms), the popup refreshes its identity every 600 ms and unlocks itself.
 
 ### Limitations imposed by Chrome
 
@@ -116,8 +122,8 @@ The extension is split into three contexts (see `docs/adr/`):
 - **Offscreen document** (`src/offscreen/`) — owns the `AudioContext`, the DSP
   graph and the capture itself. All mutating messages are serialised through one
   transition queue, and a master output gate fades around each handover so the
-  outgoing tab never plays with the incoming site's settings applied.
-- **Popup** (`src/popup/`) — edits settings for the captured origin and reports
+  outgoing tab never plays with the incoming page's settings applied.
+- **Popup** (`src/popup/`) — edits settings for the captured page and reports
   where the audio is actually coming from. It requests captures
   (`REQUEST_CAPTURE` / `RELEASE_CAPTURE`) rather than starting them.
 

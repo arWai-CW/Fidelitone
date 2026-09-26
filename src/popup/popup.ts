@@ -1,6 +1,6 @@
 // popup controller - connection state, pitch controls, engine selection, and processing mode
 // Capture lifecycle lives in the background service worker (ADR-0004): the popup
-// only requests a capture, edits settings for the captured site, and reports
+// only requests a capture, edits settings for the captured page, and reports
 // where the audio is actually coming from.
 
 import {
@@ -28,11 +28,11 @@ import {
 } from "./popup-state";
 import {
   diffAgainstDefaults,
-  originKey,
-  resolveSiteSettings,
-  siteStorageKey,
-  type ResolvedSiteSettings,
-} from "../lib/site-settings";
+  pageKey,
+  resolvePageSettings,
+  pageStorageKey,
+  type ResolvedPageSettings,
+} from "../lib/page-settings";
 
 interface RuntimeResponse {
   ok?: boolean;
@@ -75,8 +75,8 @@ const engineRubberband = getElement<HTMLButtonElement>("engineRubberband");
 const tooltip = getElement<HTMLDivElement>("tooltip");
 
 let popupState: PopupState = createPopupState();
-/** Resolved settings of the captured site; the snapshot every edit writes back. */
-let siteSettings: ResolvedSiteSettings = resolveSiteSettings(undefined);
+/** Resolved settings of the captured page; the snapshot every edit writes back. */
+let pageSettings: ResolvedPageSettings = resolvePageSettings(undefined);
 let capturedTabTitle: string | null = null;
 let loadedCapturedTabId: number | null = null;
 
@@ -126,7 +126,7 @@ function refreshControlAvailability() {
 }
 
 function connectionDetailFor(): string {
-  if (popupState.connected && isSettingsLocked(popupState)) return "目前分頁與擷取分頁的網站不同";
+  if (popupState.connected && isSettingsLocked(popupState)) return "音訊尚未切到目前分頁，請先改擷取此分頁";
   if (popupState.connected && showDivergenceBanner(popupState)) return "音訊來自另一個分頁";
   if (popupState.connected) return "目前分頁音訊正在處理";
   return "開啟分頁音訊後會自動連線";
@@ -166,6 +166,7 @@ function renderConnectionState() {
   connectBtn.setAttribute("aria-busy", String(popupState.connecting));
   refreshControlAvailability();
   renderDivergence();
+  syncDivergenceWatch();
 }
 
 /** The audio can belong to another tab; say so and offer a re-capture. */
@@ -176,6 +177,52 @@ function renderDivergence() {
   divergenceText.textContent = capturedTabTitle
     ? `目前音訊來自「${capturedTabTitle}」`
     : "目前音訊來自另一個分頁";
+}
+
+/* ------------------------------------------------------- divergence watch */
+// A tab switch is followed by the service worker after its own debounce, so a
+// freshly opened popup can still describe the previous page and sit on a lock
+// that is about to clear. Only a diverged popup watches, and only while the
+// divergence lasts: an aligned popup sends nothing.
+let divergenceWatch: number | null = null;
+let divergenceWatchBusy = false;
+const DIVERGENCE_POLL_MS = 600;
+
+function syncDivergenceWatch() {
+  const watching =
+    popupState.connected &&
+    !popupState.captureLost &&
+    (isSettingsLocked(popupState) || showDivergenceBanner(popupState));
+  if (!watching) {
+    if (divergenceWatch !== null) {
+      window.clearInterval(divergenceWatch);
+      divergenceWatch = null;
+    }
+    return;
+  }
+  if (divergenceWatch !== null) return;
+  divergenceWatch = window.setInterval(() => void refreshCapturedIdentity(), DIVERGENCE_POLL_MS);
+}
+
+/** Re-reads the capture identity; nothing else, so an open editor never jumps. */
+async function refreshCapturedIdentity() {
+  if (divergenceWatchBusy) return;
+  divergenceWatchBusy = true;
+  try {
+    const state = await getCaptureState();
+    if (!state) return;
+    const moved =
+      state.tabId !== popupState.capturedTabId || state.page !== popupState.capturedPage;
+    if (!moved) return;
+    applyLiveState(state);
+    await seedPageSettings(state);
+    renderDivergence();
+  } catch {
+    // Transient messaging failure: the watch keeps running and retries.
+  } finally {
+    divergenceWatchBusy = false;
+    syncDivergenceWatch();
+  }
 }
 
 function showError(message: string, markLost = false) {
@@ -298,47 +345,47 @@ function getTabInfo(tabId: number): Promise<chrome.tabs.Tab | null> {
   });
 }
 
-/* ------------------------------------------------------- per-origin memory */
+/* ------------------------------------------------------- per-page memory */
 
-async function loadSiteSettings(origin: string): Promise<ResolvedSiteSettings> {
-  const key = siteStorageKey(origin);
+async function loadPageSettings(page: string): Promise<ResolvedPageSettings> {
+  const key = pageStorageKey(page);
   const data = await storageGet<Record<string, unknown>>([key]);
-  return resolveSiteSettings(data[key]);
+  return resolvePageSettings(data[key]);
 }
 
 /**
  * Writes the resolved snapshot back as a sparse record: returning a value to
  * its default deletes the field, and an all-default record deletes the key.
  */
-async function persistSiteSettings(): Promise<void> {
-  const origin = popupState.capturedOrigin;
-  if (!origin) return;
-  const key = siteStorageKey(origin);
-  const sparse = diffAgainstDefaults(siteSettings);
+async function persistPageSettings(): Promise<void> {
+  const page = popupState.capturedPage;
+  if (!page) return;
+  const key = pageStorageKey(page);
+  const sparse = diffAgainstDefaults(pageSettings);
   if (Object.keys(sparse).length === 0) await storageRemove([key]);
   else await storageSet({ [key]: sparse });
 }
 
-async function commitSiteSetting(patch: Partial<ResolvedSiteSettings>): Promise<boolean> {
-  const previous = siteSettings;
-  siteSettings = { ...siteSettings, ...patch };
+async function commitPageSetting(patch: Partial<ResolvedPageSettings>): Promise<boolean> {
+  const previous = pageSettings;
+  pageSettings = { ...pageSettings, ...patch };
   try {
-    await persistSiteSettings();
+    await persistPageSettings();
     return true;
   } catch (err) {
-    siteSettings = previous;
+    pageSettings = previous;
     showError(err instanceof Error ? err.message : String(err));
     return false;
   }
 }
 
-async function rollbackSiteSetting(patch: Partial<ResolvedSiteSettings>): Promise<void> {
-  siteSettings = { ...siteSettings, ...patch };
-  await persistSiteSettings().catch(() => undefined);
+async function rollbackPageSetting(patch: Partial<ResolvedPageSettings>): Promise<void> {
+  pageSettings = { ...pageSettings, ...patch };
+  await persistPageSettings().catch(() => undefined);
 }
 
-function settingsFromLiveState(state: CaptureState): ResolvedSiteSettings {
-  return resolveSiteSettings({
+function settingsFromLiveState(state: CaptureState): ResolvedPageSettings {
+  return resolvePageSettings({
     pitch: state.pitch,
     bypass: state.bypass,
     preserveFormants: state.preserveFormants,
@@ -348,16 +395,16 @@ function settingsFromLiveState(state: CaptureState): ResolvedSiteSettings {
 }
 
 /** Storage is the memory of record; the live state is only the fallback. */
-async function seedSiteSettings(state: CaptureState): Promise<void> {
-  const origin = typeof state.origin === "string" ? state.origin : null;
-  if (!origin) {
-    siteSettings = settingsFromLiveState(state);
+async function seedPageSettings(state: CaptureState): Promise<void> {
+  const page = typeof state.page === "string" ? state.page : null;
+  if (!page) {
+    pageSettings = settingsFromLiveState(state);
     return;
   }
   try {
-    siteSettings = await loadSiteSettings(origin);
+    pageSettings = await loadPageSettings(page);
   } catch {
-    siteSettings = settingsFromLiveState(state);
+    pageSettings = settingsFromLiveState(state);
   }
 }
 
@@ -413,7 +460,7 @@ function applySnap(snap: boolean) {
   updateStepButtons();
 }
 
-function applySiteSettings(settings: ResolvedSiteSettings) {
+function applyPageSettings(settings: ResolvedPageSettings) {
   const pitch = clampPitch(settings.pitch);
   pitchSlider.value = String(pitch);
   updatePitchDisplay(pitch);
@@ -450,7 +497,7 @@ async function updatePitch(value: number, send = true): Promise<void> {
   updatePitchDisplay(nextValue);
   updateStepButtons();
 
-  if (!(await commitSiteSetting({ pitch: nextValue }))) {
+  if (!(await commitPageSetting({ pitch: nextValue }))) {
     pitchSlider.value = String(previousValue);
     updatePitchDisplay(previousValue);
     updateStepButtons();
@@ -463,7 +510,7 @@ async function updatePitch(value: number, send = true): Promise<void> {
       pitchSlider.value = String(previousValue);
       updatePitchDisplay(previousValue);
       updateStepButtons();
-      await rollbackSiteSetting({ pitch: previousValue });
+      await rollbackPageSetting({ pitch: previousValue });
     }
   }
 }
@@ -514,15 +561,15 @@ async function connectCurrentTab(): Promise<boolean> {
     const state = await getCaptureState();
     if (state) {
       applyLiveState(state);
-      await seedSiteSettings(state);
+      await seedPageSettings(state);
     } else {
       // State is briefly unavailable right after a handover: still attribute
-      // later edits to the site we just captured.
-      const origin = originKey(tab.url);
-      popupState = setActiveTab(popupState, { id: tab.id, origin });
-      if (origin) {
-        popupState = setCaptureIdentity(popupState, { id: tab.id, origin });
-        siteSettings = await loadSiteSettings(origin).catch(() => siteSettings);
+      // later edits to the page we just captured.
+      const page = pageKey(tab.url);
+      popupState = setActiveTab(popupState, { id: tab.id, page });
+      if (page) {
+        popupState = setCaptureIdentity(popupState, { id: tab.id, page });
+        pageSettings = await loadPageSettings(page).catch(() => pageSettings);
       }
       void refreshCapturedTabTitle();
     }
@@ -641,21 +688,21 @@ snapCheckbox.addEventListener("change", () => {
 formantCheckbox.addEventListener("change", async () => {
   if (isProcessingLocked(popupState)) return;
   const preserve = formantCheckbox.checked;
-  if (!(await commitSiteSetting({ preserveFormants: preserve }))) {
+  if (!(await commitPageSetting({ preserveFormants: preserve }))) {
     formantCheckbox.checked = !preserve;
     return;
   }
 
   if (!(await sendSafe({ type: "SET_FORMANTS", value: { preserve } }))) {
     formantCheckbox.checked = !preserve;
-    await rollbackSiteSetting({ preserveFormants: !preserve });
+    await rollbackPageSetting({ preserveFormants: !preserve });
   }
 });
 
 accompanimentCheckbox.addEventListener("change", async () => {
   if (isProcessingLocked(popupState)) return;
   const enabled = accompanimentCheckbox.checked;
-  if (!(await commitSiteSetting({ accompanimentMode: enabled }))) {
+  if (!(await commitPageSetting({ accompanimentMode: enabled }))) {
     accompanimentCheckbox.checked = !enabled;
     return;
   }
@@ -665,7 +712,7 @@ accompanimentCheckbox.addEventListener("change", async () => {
 
   if (!(await sendSafe({ type: "SET_ACCOMPANIMENT", value: { enabled } }, true, ACCOMPANIMENT_COMMAND_TIMEOUT_MS))) {
     accompanimentCheckbox.checked = !enabled;
-    await rollbackSiteSetting({ accompanimentMode: !enabled });
+    await rollbackPageSetting({ accompanimentMode: !enabled });
     renderEngineState();
     refreshControlAvailability();
   } else {
@@ -699,7 +746,7 @@ bypassBtn.addEventListener("click", async () => {
   popupState = setBypass(popupState, !previousBypass);
   updateBypassButtonState();
 
-  if (!(await commitSiteSetting({ bypass: popupState.bypass }))) {
+  if (!(await commitPageSetting({ bypass: popupState.bypass }))) {
     popupState = setBypass(popupState, previousBypass);
     updateBypassButtonState();
     return;
@@ -708,7 +755,7 @@ bypassBtn.addEventListener("click", async () => {
   if (!(await sendSafe({ type: "SET_BYPASS", value: { active: popupState.bypass } }))) {
     popupState = setBypass(popupState, previousBypass);
     updateBypassButtonState();
-    await rollbackSiteSetting({ bypass: previousBypass });
+    await rollbackPageSetting({ bypass: previousBypass });
   } else {
     await refreshRouteState();
   }
@@ -741,7 +788,7 @@ async function selectEngineFromUi(engine: Engine): Promise<void> {
   renderEngineState();
   refreshControlAvailability();
 
-  if (!(await commitSiteSetting({ engine }))) {
+  if (!(await commitPageSetting({ engine }))) {
     popupState = selectEngine(popupState, previousEngine);
     renderEngineState();
     refreshControlAvailability();
@@ -752,7 +799,7 @@ async function selectEngineFromUi(engine: Engine): Promise<void> {
     popupState = selectEngine(popupState, previousEngine);
     renderEngineState();
     refreshControlAvailability();
-    await rollbackSiteSetting({ engine: previousEngine });
+    await rollbackPageSetting({ engine: previousEngine });
   } else {
     await refreshRouteState();
   }
@@ -763,7 +810,7 @@ engineRubberband.addEventListener("click", () => void selectEngineFromUi("rubber
 
 async function initializePopup() {
   const activeTab = await queryActiveTab();
-  popupState = setActiveTab(popupState, { id: activeTab?.id, origin: originKey(activeTab?.url) });
+  popupState = setActiveTab(popupState, { id: activeTab?.id, page: pageKey(activeTab?.url) });
   const title = activeTab?.title ?? "No active tab";
   tabTitle.textContent = title;
   tabTitle.title = title;
@@ -779,7 +826,7 @@ async function initializePopup() {
   if (liveState?.connected || liveState?.captureLost) {
     applyLiveState(liveState);
     setConnected(liveState.connected === true);
-    await seedSiteSettings(liveState);
+    await seedPageSettings(liveState);
   } else {
     setConnected(false);
     // Opening the popup is the one gesture that grants tab capture, so a fresh

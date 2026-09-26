@@ -99,16 +99,16 @@ describe("CaptureManager", () => {
     const manager = new CaptureManager(graph, accomp, callbacks);
     await manager.start("stream-id", 0, false, {
       tabId: 9,
-      origin: "https://www.youtube.com",
+      page: "https://www.youtube.com",
     });
 
     expect(manager.tabId).toBe(9);
-    expect(manager.origin).toBe("https://www.youtube.com");
+    expect(manager.page).toBe("https://www.youtube.com");
     expect(callbacks.emitCaptureEvent).toHaveBeenLastCalledWith({
       connected: true,
       captureLost: false,
       tabId: 9,
-      origin: "https://www.youtube.com",
+      page: "https://www.youtube.com",
     });
 
     manager.handleCaptureEnded(stream);
@@ -116,7 +116,7 @@ describe("CaptureManager", () => {
       connected: false,
       captureLost: true,
       tabId: 9,
-      origin: "https://www.youtube.com",
+      page: "https://www.youtube.com",
     });
 
     manager.stop();
@@ -124,7 +124,7 @@ describe("CaptureManager", () => {
       connected: false,
       captureLost: false,
       tabId: null,
-      origin: null,
+      page: null,
     });
   });
 
@@ -133,7 +133,7 @@ describe("CaptureManager", () => {
     navigator.mediaDevices.getUserMedia = vi.fn().mockResolvedValue(stream);
 
     const manager = new CaptureManager(graph, accomp, callbacks);
-    await manager.start("stream-id", 0, false, { tabId: 1, origin: "https://a.com" });
+    await manager.start("stream-id", 0, false, { tabId: 1, page: "https://a.com" });
 
     graph.createMediaStreamSource = vi.fn(() => {
       throw new Error("graph rejected the stream");
@@ -143,11 +143,11 @@ describe("CaptureManager", () => {
     } as unknown as MediaStream);
 
     await expect(
-      manager.start("stream-id-2", 0, false, { tabId: 2, origin: "https://b.com" }),
+      manager.start("stream-id-2", 0, false, { tabId: 2, page: "https://b.com" }),
     ).rejects.toThrow("graph rejected the stream");
 
     expect(manager.connected).toBe(true);
     expect(manager.tabId).toBe(1);
-    expect(manager.origin).toBe("https://a.com");
+    expect(manager.page).toBe("https://a.com");
   });
 });

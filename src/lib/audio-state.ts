@@ -5,7 +5,7 @@ export interface EngineAvailability {
   rubberband: boolean;
 }
 
-/** Fully resolved processing settings; the unit a site remembers and applies. */
+/** Fully resolved processing settings; the unit a page remembers and applies. */
 export interface ProcessingSettings {
   pitch: number;
   bypass: boolean;
@@ -28,6 +28,6 @@ export interface CaptureState {
   engineAvailability?: EngineAvailability;
   /** Identity of the tab currently being captured (null when idle/lost). */
   tabId?: number | null;
-  /** Origin of the captured tab; the key its settings are remembered under. */
-  origin?: string | null;
+  /** Page URL of the capture (see pageKey); the key its settings live under. */
+  page?: string | null;
 }

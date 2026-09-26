@@ -1,6 +1,6 @@
 // Master output gate: the single point between every engine/limiter path and
 // AudioContext.destination. ADR-0004 gates it around a capture handover so the
-// outgoing tab never plays with the incoming site's settings applied.
+// outgoing tab never plays with the incoming page's settings applied.
 
 /** Fade length for a handover; short enough to read as one continuous stream. */
 export const OUTPUT_GATE_MS = 25;

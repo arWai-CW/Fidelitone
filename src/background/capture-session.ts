@@ -4,18 +4,18 @@
 
 import type { CaptureState } from "../lib/audio-state";
 import type { CaptureEvent } from "../offscreen/offscreen-state";
-import type { BadgeInput } from "../lib/site-settings";
+import type { BadgeInput } from "../lib/page-settings";
 
 export interface CaptureSession {
   capturedTabId: number | null;
-  capturedOrigin: string | null;
+  capturedPage: string | null;
   connected: boolean;
   captureLost: boolean;
 }
 
 export const EMPTY_SESSION: CaptureSession = {
   capturedTabId: null,
-  capturedOrigin: null,
+  capturedPage: null,
   connected: false,
   captureLost: false,
 };
@@ -32,7 +32,7 @@ export function hasActiveCapture(session: CaptureSession): boolean {
 export function sessionFromEvent(event: CaptureEvent): CaptureSession {
   return {
     capturedTabId: event.tabId,
-    capturedOrigin: event.origin,
+    capturedPage: event.page,
     connected: event.connected,
     captureLost: event.captureLost,
   };
@@ -49,7 +49,7 @@ export function sessionFromState(
   if (!state.connected) return EMPTY_SESSION;
   return {
     capturedTabId: state.tabId ?? session.capturedTabId,
-    capturedOrigin: state.origin ?? session.capturedOrigin,
+    capturedPage: state.page ?? session.capturedPage,
     connected: true,
     captureLost: false,
   };
@@ -59,9 +59,9 @@ export function sessionFromState(
 export function withTarget(
   session: CaptureSession,
   tabId: number,
-  origin: string,
+  page: string,
 ): CaptureSession {
-  return { capturedTabId: tabId, capturedOrigin: origin, connected: true, captureLost: false };
+  return { capturedTabId: tabId, capturedPage: page, connected: true, captureLost: false };
 }
 
 export function badgeInputFor(

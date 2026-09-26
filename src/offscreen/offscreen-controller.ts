@@ -193,7 +193,7 @@ export class OffscreenController implements OffscreenControllerInterface {
 
   /**
    * ADR-0004: one atomic handover — warm up the slow work while the old tab
-   * still plays, close the output gate, apply the incoming site's settings,
+   * still plays, close the output gate, apply the incoming page's settings,
    * swap the stream, then reopen. A failure anywhere rolls back to the previous
    * settings and leaves the old capture running.
    */
@@ -206,7 +206,7 @@ export class OffscreenController implements OffscreenControllerInterface {
 
     try {
       await this.applySettings(next);
-      const target: CaptureTarget = { tabId: request.tabId, origin: request.origin };
+      const target: CaptureTarget = { tabId: request.tabId, page: request.page };
       if (request.streamId) {
         await this.capture.start(
           request.streamId,
@@ -224,7 +224,7 @@ export class OffscreenController implements OffscreenControllerInterface {
     }
 
     await this.graph.fadeIn();
-    console.log("[offscreen] Capture →", request.origin, "(tab", request.tabId, ")");
+    console.log("[offscreen] Capture →", request.page, "(tab", request.tabId, ")");
   }
 
   async stopCapture(): Promise<void> {
@@ -254,7 +254,7 @@ export class OffscreenController implements OffscreenControllerInterface {
         captureLost: this.capture.captureLost,
         engineAvailability: this.engine.availability,
         tabId: this.capture.tabId,
-        origin: this.capture.origin,
+        page: this.capture.page,
       },
     };
   }

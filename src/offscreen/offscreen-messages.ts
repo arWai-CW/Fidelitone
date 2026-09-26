@@ -1,5 +1,5 @@
 import type { CaptureState, Engine, SwitchCaptureRequest } from "./offscreen-state";
-import { resolveSiteSettings } from "../lib/site-settings";
+import { resolvePageSettings } from "../lib/page-settings";
 
 export interface OffscreenController {
   setPitch(value: { semitones: number }): Promise<boolean>;
@@ -27,18 +27,18 @@ function errorMessage(error: unknown): string {
 
 /** ADR-0004: handovers are atomic, so only a well-formed payload is accepted. */
 function readSwitchCaptureRequest(msg: Record<string, unknown>): SwitchCaptureRequest | null {
-  const { tabId, origin, streamId, settings } = msg;
+  const { tabId, page, streamId, settings } = msg;
   if (typeof tabId !== "number" || !Number.isInteger(tabId)) return null;
-  if (typeof origin !== "string" || origin.length === 0) return null;
+  if (typeof page !== "string" || page.length === 0) return null;
   if (streamId !== null && streamId !== undefined && typeof streamId !== "string") return null;
   if (settings !== null && settings !== undefined && typeof settings !== "object") return null;
 
   return {
     tabId,
-    origin,
+    page,
     streamId: typeof streamId === "string" ? streamId : null,
     settings:
-      settings === null || settings === undefined ? null : resolveSiteSettings(settings),
+      settings === null || settings === undefined ? null : resolvePageSettings(settings),
   };
 }
 

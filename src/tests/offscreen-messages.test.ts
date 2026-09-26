@@ -22,7 +22,7 @@ function createState(): CaptureState {
     captureLost: false,
     engineAvailability: { signalsmith: false, rubberband: true },
     tabId: null,
-    origin: null,
+    page: null,
   };
 }
 
@@ -44,7 +44,7 @@ function controller(): OffscreenController {
     switchCapture: vi.fn(async (request) => {
       state.connected = request.streamId !== null;
       state.tabId = request.tabId;
-      state.origin = request.origin;
+      state.page = request.page;
       if (request.settings) {
         state.pitch = request.settings.pitch;
         state.bypass = request.settings.bypass;
@@ -56,7 +56,7 @@ function controller(): OffscreenController {
     stopCapture: async () => {
       state.connected = false;
       state.tabId = null;
-      state.origin = null;
+      state.page = null;
     },
     getState: () => ({ ready: true, state }),
     runTransition: (operation) => queue.run(operation),
@@ -100,7 +100,7 @@ describe("offscreen message module", () => {
         type: "SWITCH_CAPTURE",
         streamId: "stream-1",
         tabId: 42,
-        origin: "https://www.youtube.com",
+        page: "https://www.youtube.com",
         settings: {
           pitch: 3,
           bypass: false,
@@ -118,12 +118,12 @@ describe("offscreen message module", () => {
       pitch: 3,
       preserveFormants: true,
       tabId: 42,
-      origin: "https://www.youtube.com",
+      page: "https://www.youtube.com",
     });
     expect(api.switchCapture).toHaveBeenCalledWith({
       streamId: "stream-1",
       tabId: 42,
-      origin: "https://www.youtube.com",
+      page: "https://www.youtube.com",
       settings: {
         pitch: 3,
         bypass: false,
@@ -141,7 +141,7 @@ describe("offscreen message module", () => {
       error: "Invalid switch request",
     });
     await expect(
-      handleOffscreenMessage({ type: "SWITCH_CAPTURE", tabId: 1, origin: "x", streamId: 7 }, api),
+      handleOffscreenMessage({ type: "SWITCH_CAPTURE", tabId: 1, page: "x", streamId: 7 }, api),
     ).resolves.toEqual({ ok: false, error: "Invalid switch request" });
     expect(api.switchCapture).not.toHaveBeenCalled();
   });

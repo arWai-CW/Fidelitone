@@ -3,7 +3,7 @@ import type {
   Engine as AudioEngine,
   EngineAvailability as AudioEngineAvailability,
 } from "../lib/audio-state";
-import { DEFAULT_ENGINE } from "../lib/site-settings";
+import { DEFAULT_ENGINE, isCrossTabCapture, isSettingsMismatch } from "../lib/page-settings";
 
 export type CaptureState = AudioCaptureState;
 export type Engine = AudioEngine;
@@ -20,10 +20,11 @@ export interface PopupState {
   engineAvailability: EngineAvailability;
   /** Tab the audio actually belongs to (may differ from the active tab). */
   capturedTabId: number | null;
-  /** Origin the captured tab is on; the key its settings are remembered under. */
-  capturedOrigin: string | null;
+  /** Page URL of that tab (see pageKey); the key its settings live under. */
+  capturedPage: string | null;
+  /** Tab the popup was opened on, and the page that tab is showing. */
   activeTabId: number | null;
-  activeOrigin: string | null;
+  activePage: string | null;
 }
 
 export const PITCH_MIN = -12;
@@ -42,9 +43,9 @@ export function createPopupState(): PopupState {
       rubberband: false,
     },
     capturedTabId: null,
-    capturedOrigin: null,
+    capturedPage: null,
     activeTabId: null,
-    activeOrigin: null,
+    activePage: null,
   };
 }
 
@@ -74,11 +75,15 @@ export function connectionState(state: PopupState): ConnectionState {
 }
 
 /**
- * Controls edit the captured site, so they only move when the active tab sits
- * on that same origin (ADR-0004).
+ * Controls edit one page's record, so they only move while the active tab sits
+ * on that same page URL (ADR-0004, amended to per-URL memory). Another page is
+ * another record, so anything else stays locked until the capture follows.
  */
 export function isSettingsLocked(state: PopupState): boolean {
-  return state.capturedOrigin !== state.activeOrigin;
+  return isSettingsMismatch(
+    { tabId: state.capturedTabId, page: state.capturedPage },
+    { tabId: state.activeTabId, page: state.activePage },
+  );
 }
 
 export function isProcessingLocked(state: PopupState): boolean {
@@ -86,15 +91,15 @@ export function isProcessingLocked(state: PopupState): boolean {
 }
 
 /**
- * The audio can belong to another tab on the same site: settings then stay
- * editable, but the popup must say where the sound is coming from.
+ * The audio can belong to another tab, so the popup says where the sound is
+ * coming from and offers a re-capture. Whether the controls follow is decided
+ * by isSettingsLocked: two tabs on the same page URL share one record.
  */
 export function showDivergenceBanner(state: PopupState): boolean {
-  return (
-    state.connected &&
-    !state.captureLost &&
-    state.capturedTabId !== null &&
-    state.capturedTabId !== state.activeTabId
+  if (!state.connected || state.captureLost || state.capturedTabId === null) return false;
+  return isCrossTabCapture(
+    { tabId: state.capturedTabId, page: state.capturedPage },
+    { tabId: state.activeTabId, page: state.activePage },
   );
 }
 
@@ -115,30 +120,30 @@ export function applyCaptureState(current: PopupState, capture: CaptureState): P
       rubberband: selectedEngine === "rubberband",
     },
     capturedTabId: typeof capture.tabId === "number" ? capture.tabId : null,
-    capturedOrigin: typeof capture.origin === "string" ? capture.origin : null,
+    capturedPage: typeof capture.page === "string" ? capture.page : null,
   };
 }
 
 export function setActiveTab(
   current: PopupState,
-  tab: { id?: number | null; origin?: string | null },
+  tab: { id?: number | null; page?: string | null },
 ): PopupState {
   return {
     ...current,
     activeTabId: typeof tab.id === "number" ? tab.id : null,
-    activeOrigin: tab.origin ?? null,
+    activePage: tab.page ?? null,
   };
 }
 
 /** Records where the audio actually lives (used when GET_STATE is unavailable). */
 export function setCaptureIdentity(
   current: PopupState,
-  tab: { id?: number | null; origin?: string | null },
+  tab: { id?: number | null; page?: string | null },
 ): PopupState {
   return {
     ...current,
     capturedTabId: typeof tab.id === "number" ? tab.id : null,
-    capturedOrigin: tab.origin ?? null,
+    capturedPage: tab.page ?? null,
   };
 }
 
@@ -148,7 +153,7 @@ export function setConnected(current: PopupState, connected: boolean): PopupStat
     connected,
     captureLost: connected ? current.captureLost : false,
     capturedTabId: connected ? current.capturedTabId : null,
-    capturedOrigin: connected ? current.capturedOrigin : null,
+    capturedPage: connected ? current.capturedPage : null,
   };
 }
 

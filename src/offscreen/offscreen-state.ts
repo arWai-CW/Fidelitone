@@ -26,13 +26,13 @@ export interface CaptureEvent {
   connected: boolean;
   captureLost: boolean;
   tabId: number | null;
-  origin: string | null;
+  page: string | null;
 }
 
 /** Identity of the tab the capture belongs to. */
 export interface CaptureTarget {
   tabId: number | null;
-  origin: string | null;
+  page: string | null;
 }
 
 /** ADR-0004 atomic handover: settings first, then (optionally) the stream. */
@@ -40,6 +40,6 @@ export interface SwitchCaptureRequest {
   /** null keeps the current stream and only re-applies settings/identity. */
   streamId: string | null;
   tabId: number;
-  origin: string;
+  page: string;
   settings: ProcessingSettings | null;
 }
