@@ -60,9 +60,12 @@ export function isLegacyRecordKey(key: string): boolean {
 }
 
 /** Keys that stay global (never namespaced per page). */
-export const GLOBAL_SETTING_KEYS = ["snapToInteger"] as const;
+export const GLOBAL_SETTING_KEYS = ["snapToInteger", "youtubeBaseVolume"] as const;
 
 export const SNAP_TO_INTEGER_DEFAULT = true;
+
+/** Default for the global YouTube baseline volume (ADR-0005). */
+export const YOUTUBE_BASE_VOLUME_DEFAULT = 100;
 
 /** Storage key for one page's record. */
 export function pageStorageKey(page: string): string {
@@ -98,6 +101,17 @@ export function pageKey(url: string | null | undefined): string | null {
 /** True when a tab URL could be captured by tabCapture (http/https only). */
 export function isSupportedTabUrl(url: string | null | undefined): boolean {
   return parseHttpUrl(url) !== null;
+}
+
+/**
+ * True when the page hosts the `<video>` the YouTube content script controls.
+ * The manifest injects on `https://www.youtube.com/*` only, so the popup gate
+ * must match that exactly — a hostname the content script never reached would
+ * leave buttons enabled with nobody listening.
+ */
+export function isYouTubePage(page: string | null | undefined): boolean {
+  const parsed = parseHttpUrl(page);
+  return parsed !== null && parsed.protocol === "https:" && parsed.hostname === "www.youtube.com";
 }
 
 function isEngine(value: unknown): value is Engine {

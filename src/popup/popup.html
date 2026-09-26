@@ -25,10 +25,61 @@
 				</div>
 			</header>
 
-			<section class="connection-strip reveal reveal-delay-1" aria-label="音訊連線">
+			<section class="panel youtube-panel reveal reveal-delay-1" aria-labelledby="youtubeHeading">
+				<div class="panel-shell">
+					<div class="panel-core">
+						<div class="panel-heading">
+							<h2 id="youtubeHeading">YouTube 音量</h2>
+							<output class="volume-current" id="volumeCurrent" aria-live="polite">目前 —</output>
+						</div>
+
+						<div class="block-label">基準音量</div>
+						<div class="volume-row">
+							<input
+								type="number"
+								class="volume-number"
+								id="volumeBaseInput"
+								min="0"
+								max="100"
+								step="1"
+								value="100"
+								inputmode="numeric"
+								aria-label="基準音量（0–100%）"
+							/>
+							<span class="volume-percent" aria-hidden="true">%</span>
+							<button
+								class="icon-button volume-apply"
+								id="volumeApplyBtn"
+								type="button"
+								aria-label="套用基準音量"
+								data-tooltip="套用基準音量"
+							>
+								<svg
+									class="icon"
+									viewBox="0 0 24 24"
+									aria-hidden="true"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2.5"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+								>
+									<path d="M20 6 9 17l-5-5" />
+								</svg>
+							</button>
+							<button class="action-button" id="volumeFadeBtn" type="button">淡出</button>
+						</div>
+						<p class="panel-note" id="volumeDeviation">目前音量與基準一致</p>
+
+						<p class="panel-note" id="youtubeHint"></p>
+					</div>
+				</div>
+			</section>
+
+			<section class="connection-strip reveal reveal-delay-2" aria-label="音訊連線">
 				<div class="connection-copy">
 					<strong id="connectionHeadline">等待開始</strong>
-					<span id="connectionDetail">開啟分頁音訊後會自動連線</span>
+					<span id="connectionDetail">按連線開始處理此分頁音訊</span>
 				</div>
 				<div class="connection-actions">
 					<button
@@ -100,7 +151,7 @@
 			</div>
 
 			<main>
-				<section class="panel pitch-panel control-lock reveal reveal-delay-2" aria-labelledby="pitchHeading">
+				<section class="panel pitch-panel control-lock reveal reveal-delay-3" aria-labelledby="pitchHeading">
 					<div class="panel-shell">
 						<div class="panel-core">
 							<div class="panel-heading">
@@ -164,7 +215,7 @@
 					</div>
 				</section>
 
-				<section class="panel signal-panel control-lock reveal reveal-delay-3" aria-labelledby="signalHeading">
+				<section class="panel signal-panel control-lock reveal reveal-delay-4" aria-labelledby="signalHeading">
 					<div class="panel-shell">
 						<div class="panel-core">
 							<div class="panel-heading">
@@ -207,7 +258,7 @@
 				</section>
 
 				<section
-					class="panel options-panel control-lock reveal reveal-delay-4"
+					class="panel options-panel control-lock reveal reveal-delay-5"
 					aria-labelledby="optionsHeading"
 				>
 					<div class="panel-shell">

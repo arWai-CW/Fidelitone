@@ -93,7 +93,13 @@ export default defineConfig({
   build: {
     target: "esnext",
     outDir: "dist",
-    emptyOutDir: true,
+    // The content scripts (content.js isolated bridge + content-main.js MAIN
+    // world writer) are produced out-of-band by esbuild (see the `content`
+    // script in package.json): a content script must be a classic script, and
+    // bundling it here would hoist its shared imports into an ESM chunk — an
+    // `import` statement makes the whole file throw SyntaxError in the page.
+    // Vite therefore never empties dist; the `build` script cleans it instead.
+    emptyOutDir: false,
     rollupOptions: {
       input: {
         popup: resolve(__dirname, "src/popup/popup.html"),
@@ -101,8 +107,8 @@ export default defineConfig({
         background: resolve(__dirname, "src/background/index.ts"),
       },
       output: {
-        // The manifest references the service worker by a fixed name, so the
-        // background chunk must not get a content hash.
+        // The manifest references the service worker by a fixed name, so that
+        // chunk must not get a content hash.
         entryFileNames: (chunk) =>
           chunk.name === "background" ? "background.js" : "assets/[name]-[hash].js",
       },

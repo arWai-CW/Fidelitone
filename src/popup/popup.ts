@@ -28,11 +28,17 @@ import {
 } from "./popup-state";
 import {
   diffAgainstDefaults,
+  isYouTubePage,
   pageKey,
   resolvePageSettings,
   pageStorageKey,
+  YOUTUBE_BASE_VOLUME_DEFAULT,
   type ResolvedPageSettings,
 } from "../lib/page-settings";
+import {
+  clampVolume,
+  volumeDeltaPercent,
+} from "../lib/volume";
 
 interface RuntimeResponse {
   ok?: boolean;
@@ -72,6 +78,12 @@ const formantCheckbox = getElement<HTMLInputElement>("formantCheckbox");
 const accompanimentCheckbox = getElement<HTMLInputElement>("accompanimentCheckbox");
 const engineSignalsmith = getElement<HTMLButtonElement>("engineSignalsmith");
 const engineRubberband = getElement<HTMLButtonElement>("engineRubberband");
+const volumeCurrent = getElement<HTMLOutputElement>("volumeCurrent");
+const volumeBaseInput = getElement<HTMLInputElement>("volumeBaseInput");
+const volumeApplyBtn = getElement<HTMLButtonElement>("volumeApplyBtn");
+const volumeFadeBtn = getElement<HTMLButtonElement>("volumeFadeBtn");
+const volumeDeviation = getElement<HTMLParagraphElement>("volumeDeviation");
+const youtubeHint = getElement<HTMLParagraphElement>("youtubeHint");
 const tooltip = getElement<HTMLDivElement>("tooltip");
 
 let popupState: PopupState = createPopupState();
@@ -79,6 +91,30 @@ let popupState: PopupState = createPopupState();
 let pageSettings: ResolvedPageSettings = resolvePageSettings(undefined);
 let capturedTabTitle: string | null = null;
 let loadedCapturedTabId: number | null = null;
+
+/* ------------------------------------------------------- YouTube volume */
+// Panel state (ADR-0005, revised by ADR-0006): a global baseline the user
+// keeps and the live value read back from the page's <video>. Storage is the
+// memory of record for the baseline; everything else is observation.
+
+const YOUTUBE_DEFAULT_VOLUME = YOUTUBE_BASE_VOLUME_DEFAULT;
+
+interface YoutubeTabResponse {
+  ok?: boolean;
+  error?: string;
+  found?: boolean;
+  volume?: number;
+  muted?: boolean;
+}
+
+let youtube = {
+  base: YOUTUBE_DEFAULT_VOLUME,
+  found: false,
+  volume: null as number | null,
+  muted: false,
+  /** Transport failure talking to the content script (distinct from "no <video>"). */
+  error: null as string | null,
+};
 
 function getPitch(): number {
   const value = Number.parseFloat(pitchSlider.value);
@@ -123,13 +159,14 @@ function refreshControlAvailability() {
 
   renderEngineState();
   updateBypassButtonState();
+  renderYoutubePanel();
 }
 
 function connectionDetailFor(): string {
   if (popupState.connected && isSettingsLocked(popupState)) return "音訊尚未切到目前分頁，請先改擷取此分頁";
   if (popupState.connected && showDivergenceBanner(popupState)) return "音訊來自另一個分頁";
   if (popupState.connected) return "目前分頁音訊正在處理";
-  return "開啟分頁音訊後會自動連線";
+  return "按連線開始處理此分頁音訊";
 }
 
 function renderConnectionState() {
@@ -157,7 +194,7 @@ function renderConnectionState() {
   } else {
     connectionText.textContent = "尚未連線";
     connectionHeadline.textContent = "等待開始";
-    connectionDetail.textContent = "開啟分頁音訊後會自動連線";
+    connectionDetail.textContent = "按連線開始處理此分頁音訊";
     connectBtn.setAttribute("aria-label", "連線音訊");
     connectBtn.setAttribute("data-tooltip", "連線音訊");
   }
@@ -610,6 +647,133 @@ async function disconnectCapture(): Promise<boolean> {
   }
 }
 
+/* ------------------------------------------------------- YouTube volume */
+
+function readBaseVolumeInput(): number {
+  const raw = volumeBaseInput.value.trim();
+  if (raw === "") return youtube.base;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? clampVolume(parsed) : youtube.base;
+}
+
+/** Talks to the content script of the tab the popup was opened on. */
+function requestFromActiveTab(msg: Record<string, unknown>): Promise<YoutubeTabResponse> {
+  const tabId = popupState.activeTabId;
+  if (tabId === null) return Promise.resolve({ ok: false, error: "找不到目前分頁" });
+  return new Promise((resolve) => {
+    try {
+      chrome.tabs.sendMessage(tabId, msg, (response) => {
+        const err = chrome.runtime.lastError;
+        if (err) resolve({ ok: false, error: describeMissingReceiver(err.message) });
+        else resolve((response as YoutubeTabResponse | undefined) ?? { ok: false, error: "YouTube 控制項未回應" });
+      });
+    } catch (err) {
+      resolve({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+}
+
+/**
+ * `Receiving end does not exist` means the content script never registered in
+ * that tab — it is injected at page load, so a freshly (re)loaded extension
+ * leaves older tabs without it. Say that instead of blaming the page.
+ */
+function describeMissingReceiver(message: string | undefined): string {
+  if (message?.includes("Receiving end does not exist")) {
+    return "影片控制項未載入：重載擴充功能後，請重新載入此分頁";
+  }
+  return message ?? "YouTube 控制項未回應";
+}
+
+async function refreshYoutubeState(): Promise<void> {
+  if (!isYouTubePage(popupState.activePage)) {
+    youtube.found = false;
+    youtube.volume = null;
+    youtube.muted = false;
+    youtube.error = null;
+    renderYoutubePanel();
+    return;
+  }
+  const response = await requestFromActiveTab({ type: "YT_VOLUME_GET" });
+  youtube.error = response.ok === true ? null : (response.error ?? "YouTube 控制項未回應");
+  youtube.found = response.ok === true && response.found === true;
+  youtube.volume = youtube.found && typeof response.volume === "number" ? response.volume : null;
+  youtube.muted = response.muted === true;
+  renderYoutubePanel();
+}
+
+/**
+ * Every edit the panel performs is a plain volume write the content script
+ * accepts on its own — no capture, no engine, no connection involved (ADR-0006
+ * removed the one feature that needed a live signal: loudness analysis).
+ */
+function youtubeHintText(onYouTube: boolean): string {
+  if (!onYouTube) return "此面板僅適用於 YouTube（www.youtube.com）";
+  if (youtube.error) return youtube.error;
+  if (!youtube.found) return "此頁面找不到影片";
+  if (youtube.muted) return "影片已靜音；按「套用」設定音量會一併取消靜音";
+  return "";
+}
+
+function deviationText(): string {
+  if (!isYouTubePage(popupState.activePage)) return "切到 YouTube 頁面即可控制影片音量";
+  if (!youtube.found) return "此頁面沒有可控制的影片";
+  if (youtube.volume === null) return "按「套用」把基準音量寫入影片";
+  if (youtube.volume <= 0) return "目前音量為 0";
+  if (youtube.base <= 0) return "基準音量為 0";
+  // Percentage, not dB: it is the number the slider itself speaks (ADR-0006).
+  const delta = volumeDeltaPercent(youtube.volume, youtube.base);
+  if (delta === 0) return "目前音量與基準一致";
+  return `目前音量比基準${delta > 0 ? "高" : "低"} ${Math.abs(delta)}%`;
+}
+
+function renderYoutubePanel(): void {
+  const onYouTube = isYouTubePage(popupState.activePage);
+  if (document.activeElement !== volumeBaseInput) volumeBaseInput.value = String(youtube.base);
+
+  if (!onYouTube || !youtube.found || youtube.volume === null) {
+    volumeCurrent.textContent = "目前 —";
+  } else if (youtube.muted) {
+    volumeCurrent.textContent = "目前 靜音";
+  } else {
+    volumeCurrent.textContent = `目前 ${Math.round(youtube.volume)}`;
+  }
+
+  volumeApplyBtn.disabled = !youtube.found;
+  volumeFadeBtn.disabled = !youtube.found;
+  volumeDeviation.textContent = deviationText();
+  youtubeHint.textContent = youtubeHintText(onYouTube);
+}
+
+async function persistBaseVolume(value: number): Promise<boolean> {
+  const previous = youtube.base;
+  youtube.base = value;
+  try {
+    if (value === YOUTUBE_DEFAULT_VOLUME) await storageRemove(["youtubeBaseVolume"]);
+    else await storageSet({ youtubeBaseVolume: value });
+    renderYoutubePanel();
+    return true;
+  } catch (err) {
+    youtube.base = previous;
+    showError(err instanceof Error ? err.message : String(err));
+    renderYoutubePanel();
+    return false;
+  }
+}
+
+async function setYoutubeVolume(value: number): Promise<boolean> {
+  const target = clampVolume(value);
+  const response = await requestFromActiveTab({ type: "YT_VOLUME_SET", value: target });
+  if (response.ok !== true) {
+    showError(response.error ?? "無法設定影片音量");
+    return false;
+  }
+  youtube.volume = target;
+  if (target > 0) youtube.muted = false;
+  renderYoutubePanel();
+  return true;
+}
+
 /* Tooltip handling */
 let tooltipHideTimer: number | null = null;
 
@@ -808,6 +972,24 @@ async function selectEngineFromUi(engine: Engine): Promise<void> {
 engineSignalsmith.addEventListener("click", () => void selectEngineFromUi("signalsmith"));
 engineRubberband.addEventListener("click", () => void selectEngineFromUi("rubberband"));
 
+volumeBaseInput.addEventListener("change", () => {
+  const value = readBaseVolumeInput();
+  volumeBaseInput.value = String(value);
+  void persistBaseVolume(value);
+});
+
+volumeApplyBtn.addEventListener("click", async () => {
+  const value = readBaseVolumeInput();
+  volumeBaseInput.value = String(value);
+  if (!(await persistBaseVolume(value))) return;
+  await setYoutubeVolume(value);
+});
+
+volumeFadeBtn.addEventListener("click", () => {
+  // Fade out: the same 500 ms ramp every write uses, targeted at silence.
+  void setYoutubeVolume(0);
+});
+
 async function initializePopup() {
   const activeTab = await queryActiveTab();
   popupState = setActiveTab(popupState, { id: activeTab?.id, page: pageKey(activeTab?.url) });
@@ -816,8 +998,15 @@ async function initializePopup() {
   tabTitle.title = title;
 
   try {
-    const global = await storageGet<{ snapToInteger?: boolean }>(["snapToInteger"]);
+    const global = await storageGet<{ snapToInteger?: boolean; youtubeBaseVolume?: number }>([
+      "snapToInteger",
+      "youtubeBaseVolume",
+    ]);
     applySnap(global.snapToInteger !== false);
+    youtube.base =
+      typeof global.youtubeBaseVolume === "number" && Number.isFinite(global.youtubeBaseVolume)
+        ? clampVolume(global.youtubeBaseVolume)
+        : YOUTUBE_DEFAULT_VOLUME;
   } catch (err) {
     showError(err instanceof Error ? err.message : String(err));
   }
@@ -828,14 +1017,14 @@ async function initializePopup() {
     setConnected(liveState.connected === true);
     await seedPageSettings(liveState);
   } else {
+    // ADR-0005 (amending ADR-0004): opening the popup no longer touches the
+    // audio. The 連線 button is the only path that starts a capture.
     setConnected(false);
-    // Opening the popup is the one gesture that grants tab capture, so a fresh
-    // session connects the active tab automatically (ADR-0004).
-    await connectCurrentTab();
   }
 
   renderConnectionState();
   attachTooltipListeners();
+  void refreshYoutubeState();
 }
 
 void initializePopup();

@@ -12,6 +12,7 @@ import {
   isLegacyRecordKey,
   isSettingsMismatch,
   isSupportedTabUrl,
+  isYouTubePage,
   nextBadge,
   pageKey,
   planTabActivation,
@@ -236,5 +237,22 @@ describe("deriveBadge", () => {
       color: BADGE_COLORS.orange,
     });
     expect(nextBadge(null, input)).toEqual(first);
+  });
+});
+
+describe("isYouTubePage", () => {
+  it("accepts exactly the host the content script is injected on", () => {
+    expect(isYouTubePage("https://www.youtube.com/watch?v=abc")).toBe(true);
+    expect(isYouTubePage(pageKey("https://www.youtube.com/watch?v=abc#t=42"))).toBe(true);
+  });
+
+  it("rejects look-alikes the content script never reaches", () => {
+    expect(isYouTubePage("https://m.youtube.com/watch?v=abc")).toBe(false);
+    expect(isYouTubePage("https://music.youtube.com/watch?v=abc")).toBe(false);
+    expect(isYouTubePage("https://youtu.be/abc")).toBe(false);
+    expect(isYouTubePage("https://example.com/youtube")).toBe(false);
+    expect(isYouTubePage("http://www.youtube.com/watch?v=abc")).toBe(false);
+    expect(isYouTubePage(null)).toBe(false);
+    expect(isYouTubePage("chrome://extensions")).toBe(false);
   });
 });

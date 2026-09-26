@@ -838,6 +838,100 @@ main {
   margin-top: 0;
 }
 
+/* ------------------------------------------------- YouTube volume panel */
+
+/* First block in the shell: usable without connecting, so it sits above the
+   connection strip rather than below the pitch controls (ADR-0006 refresh). */
+.youtube-panel {
+  margin-top: 16px;
+}
+
+.volume-current {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-family: "Geist Mono", "SF Mono", monospace;
+  white-space: nowrap;
+}
+
+.volume-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.volume-number {
+  width: 74px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-family: "Geist Mono", "SF Mono", monospace;
+  text-align: right;
+  transition: all var(--transition-quick);
+}
+
+.volume-number:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.volume-number:disabled {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.volume-percent {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-family: "Geist Mono", "SF Mono", monospace;
+}
+
+/* Icon-sized apply button: matches the input row instead of the 40px header controls. */
+.volume-apply {
+  width: 34px;
+  height: 34px;
+}
+
+.volume-apply .icon {
+  width: 17px;
+  height: 17px;
+}
+
+.action-button {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all var(--transition-quick);
+}
+
+.action-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.action-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.action-button:disabled {
+  color: var(--text-muted);
+  opacity: 0.4;
+}
+
 .tooltip {
   position: fixed;
   max-width: 220px;

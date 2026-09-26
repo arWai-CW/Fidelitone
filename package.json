@@ -4,8 +4,10 @@
   "description": "Chrome MV3 extension for real-time audio pitch transposition",
   "type": "module",
   "scripts": {
-    "build": "vite build && cp -r icons dist/ && mkdir -p dist/processors && cp src/processors/*.js dist/processors/",
-    "dev": "vite build --watch && cp manifest.json dist/ && cp -r icons dist/",
+    "build": "rm -rf dist && vite build && npm run content && cp -r icons dist/ && mkdir -p dist/processors && cp src/processors/*.js dist/processors/",
+    "content": "esbuild src/content/content.ts src/content/content-main.ts --bundle --format=iife --minify --outdir=dist",
+    "content:watch": "esbuild src/content/content.ts src/content/content-main.ts --bundle --format=iife --minify --outdir=dist --watch",
+    "dev": "npm run content:watch & vite build --watch && cp manifest.json dist/ && cp -r icons dist/",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

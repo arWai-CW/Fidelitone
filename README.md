@@ -15,6 +15,9 @@ Works with YouTube, Spotify Web, SoundCloud, and any other web audio source.
   accompaniment and engine settings (sparse — only non-default values are stored)
 - Follows the tab you switch to, and applies that page's remembered settings
 - Toolbar badge shows where the audio is coming from (`ON` / `ON·` / `!`)
+- YouTube volume control: set the page volume to an exact 0–100 value with a
+  500 ms fade instead of a jump — apply it against a persistent baseline, or
+  fade the page out to silence
 - No external audio processing required
 - Works on any website with audio playback
 
@@ -41,12 +44,30 @@ Then load the extension in Chrome:
 ## Usage
 
 1. Open a tab with audio (YouTube, Spotify Web, etc.)
-2. Click the extension icon in the Chrome toolbar — this starts the capture and
-   also grants Chrome the per-tab permission the capture needs
+2. Click the extension icon in the Chrome toolbar — the popup opens and grants
+   Chrome the per-tab permission a capture needs. Nothing is captured yet:
+   press **連線音訊** when you want Fidelitone to take over the tab's audio
 3. Adjust the pitch slider to shift audio up or down
 4. Toggle bypass on/off with the power button
 5. Switch to another tab: the capture follows it and that site's remembered
    settings are applied automatically
+
+On `https://www.youtube.com/` the popup also shows a **YouTube 音量** panel:
+
+- **基準音量** — a global 0–100 value you keep, entered as a percentage;
+  **套用** (the ✓ icon) fades the page volume to it over 500 ms, **淡出** fades
+  down to silence, and the panel reports how far the page has drifted in the
+  same language (`目前音量比基準低 20%`). Works whether or not the popup is
+  connected — nothing here needs a capture.
+
+Volume changes go through YouTube's own player API when it is available, so the
+native volume slider and mute icon follow along; without it the writer falls
+back to `<video>.volume` directly. The player API is JavaScript the page owns,
+which is invisible from a normal (isolated-world) content script, so writes are
+routed through a second content script injected with `"world": "MAIN"` and
+acknowledged back over `window.postMessage` — reload the YouTube tab after
+reloading the extension, or the panel reports the missing bridge instead of
+failing silently.
 
 Toolbar badge states:
 
@@ -69,7 +90,8 @@ independent pitches, while the very same URL opened in two tabs shares one recor
   page you have never tweaked always comes back at `0 st` / Signalsmith / bypass
   off. Returning a value to its default deletes the field, and an all-default
   record deletes the key.
-- `snapToInteger` is a global interface preference and is not remembered per page.
+- `snapToInteger` and `youtubeBaseVolume` (the YouTube panel's baseline volume)
+  are global interface preferences and are not remembered per page.
 - Keys live in `chrome.storage.local` under `page:<url>`. Records written by the
   previous origin-based build (`site:<origin>`) are removed on upgrade — an origin
   maps onto no single page, and keeping one would let two videos share a pitch again.
@@ -103,8 +125,10 @@ What happens when you change tabs:
   tab makes the previous tab audible again. This is accepted behaviour of a
   single-capture extension; there is no silent-tab detection and no auto-switch-back.
 - Auto-follow only works inside a session that already has a capture. Opening the
-  popup while nothing is captured connects the active tab; it never starts a
-  capture by itself when you are idle.
+  popup never starts a capture by itself — the **連線音訊** button is the only
+  entry point (amending the original design, where opening the popup connected
+  the active tab). This is what lets the YouTube volume panel be usable while
+  the tab is still playing its own original audio.
 
 
 ## Technical Details
@@ -113,7 +137,7 @@ This extension uses Chrome's Tab Capture API to capture audio from the active ta
 processes it through WebAssembly with the Signalsmith Stretch library, and outputs
 the transposed audio via an offscreen document.
 
-The extension is split into three contexts (see `docs/adr/`):
+The extension is split into three contexts plus one injected script (see `docs/adr/`):
 
 - **Background service worker** (`src/background/`) — the only writer for capture
   lifecycle. It watches `tabs.onActivated` / `tabs.onUpdated`, debounces follows,
@@ -125,7 +149,14 @@ The extension is split into three contexts (see `docs/adr/`):
   outgoing tab never plays with the incoming page's settings applied.
 - **Popup** (`src/popup/`) — edits settings for the captured page and reports
   where the audio is actually coming from. It requests captures
-  (`REQUEST_CAPTURE` / `RELEASE_CAPTURE`) rather than starting them.
+  (`REQUEST_CAPTURE` / `RELEASE_CAPTURE`) rather than starting them, and drives
+  the YouTube volume panel.
+- **Content scripts** (`src/content/`) — injected on `https://www.youtube.com/*`
+  only, as two scripts: an ISOLATED-world bridge that speaks to the popup and
+  reads the DOM, and a `"world": "MAIN"` writer that owns every volume change
+  (500 ms ramp through YouTube's player API when available, falling back to
+  `<video>.volume`). They never touch playback state and never rewrite volume
+  on their own (ADR-0005).
 
 
 ## License

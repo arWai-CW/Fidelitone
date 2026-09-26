@@ -41,6 +41,10 @@ export class GraphRouter {
       return false;
     }
 
+    return this.connectRoute(source, route, preserveGains);
+  }
+
+  private connectRoute(source: MediaStreamAudioSourceNode, route: GraphRoute, preserveGains: boolean): boolean {
     if (route.bypass) {
       this.rewire();
       this.graph.requirePassthrough().connect(this.graph.requireOutput());

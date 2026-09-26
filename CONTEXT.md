@@ -26,4 +26,8 @@ Real-time audio pitch transposition for Chrome tabs.
 
 **設定分歧**: 擷取分頁的 tabId 或 page 與目前活動分頁不一致的狀態。tabId 不同顯示分歧橫幅與「改擷取此分頁」；page 不同則額外鎖定控制項（同一 URL 開在兩個分頁時只出橫幅、不鎖）。popup 於分歧期間以 600ms 輪詢 `GET_STATE` 對齊身分，對齊即停。_Avoid_: 斷線（captureLost 是另一回事）、錯誤狀態、失去連線
 
-**輸出總閘**: 置於引擎／limiter 之後、AudioContext destination 之前的 master gain。分頁交接時淡出 20–30ms 避免用錯設定播出，切換完成後淡入。_Avoid_: limiter、master volume、總音量（與使用者音量無關）
+**輸出總閘**: 置於引擎／limiter 之後、AudioContext destination 之前的 master gain。分頁交接時淡出 20–30ms 避免用錯設定播出，切換完成後淡入。_Avoid_: limiter、master volume、總音量（與使用者音量無關；使用者音量見「頁面音量」）
+
+**頁面音量**: 使用者看得到的那個音量：YouTube watch 頁播放器的音量，介面刻度 0–100（面板全程用百分比表達），由 manifest 注入的**兩支** content script 操作——ISOLATED 腳本（`content.js`）負責 popup 訊息與 DOM 讀取，MAIN world 腳本（`content-main.js`）持有 ramp 與所有寫入（頁面 JS 定義的 `setVolume` 在 ISOLATED world 讀作 undefined），兩者以 `postMessage` + ack 串接。寫入**優先走 player API**（`#movie_player.setVolume/unMute`），讓原生音量條與靜音圖示同步；API 不在時才退回直寫 `<video>.volume`。任何變更（套用／淡出）一律 500ms ramp、新指令重定目標（最後指令贏），且只在按鈕觸發時寫入——頁面載入與開 popup 都不覆寫。存的是**全域基準** `youtubeBaseVolume`（不進 per-URL 記憶）。_Avoid_: master gain、輸出總閘（是 DSP 的事）、總音量、直寫 `video.volume`／`video.muted`（音量條與靜音圖示會脫節）
+
+**基準音量**: 全域鍵 `youtubeBaseVolume`（0–100，預設 100，等於預設即刪鍵，類同 `snapToInteger`）。目前音量偏離基準時，面板以「比基準高/低 x%」提示（百分比相對基準、四捨五入，0 即「與基準一致」），按「套用」寫回基準；「淡出」只把音量漸降到 0，不動基準。popup 關閉不會自動改音量。_Avoid_: per-URL 音量、自動恢復、隱形改音量

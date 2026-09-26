@@ -54,7 +54,9 @@ Status: accepted — 已實作（修改順序 1–8 全部完成）
    `AudioGraph` 增加一個 master `outputGain`，置於引擎／limiter 之後、`ctx.destination` 之前；`graph-router.ts` 的 6 處 `ctx.destination`（`:46,60,71,74,88,103`）改接到它。交接時淡出 20–30 ms、換流完成後淡入，消除「舊分頁用新設定播出」與切換瞬間的雙聲。這是唯一同時解決兩者的方案；30 ms 淡出在聽覺上只是「換了一台」而非爆音。
 
 9. **自動跟隨只在已有擷取的工作階段內生效**  
-   沒有任何擷取在跑時，切分頁不主動連線。連線的觸發點維持「開啟 popup」（打開時若 offscreen 無擷取即連線目前分頁，失敗則顯示錯誤並維持未連線）。自動跟隨不是跨瀏覽器工作階段的恢復機制。
+   沒有任何擷取在跑時，切分頁不主動連線。自動跟隨不是跨瀏覽器工作階段的恢復機制。
+
+   **已修訂（ADR-0005）**：連線的觸發點原本是「開啟 popup」（打開時若 offscreen 無擷取即連線目前分頁）。YouTube 音量面板要求 popup 在未連線時也能直接操作頁面音量、而「分析」要在明確的時機點接管音訊，因此**拿掉自動連線**——popup 打開完全不動音訊，連線鈕（`連線音訊`）成為唯一入口。
 
 10. **設定分歧的處理拆成兩個條件**（已修訂：鎖定改以頁面 URL 判定）
 
@@ -164,7 +166,7 @@ chrome.storage.session                    → { capturedTabId, capturedPage,
 - 不改變 ADR-0001 的 stereo sum 與統一重導線決策。
 - 不改變 ADR-0002 的 positive rate semantics 與 bounded live timeline。
 - 不支援多分頁同時擷取；擷取永遠只有一條，目標只有目前活動分頁。
-- 不注入 content script 暫停舊分頁的媒體播放。
+- 不注入 content script 暫停舊分頁的媒體播放。（**已修訂（ADR-0005）**：本條的禁令範圍是「暫停播放」，維持不變；content script 本身已不再是禁忌——ADR-0005 為 YouTube 頁面音量注入 `content.js`，且依然不碰播放狀態。）
 - 不新增 `"tabs"`、`"notifications"`、`"webNavigation"` 權限；讀 `tab.url` 沿用既有 `host_permissions`。
 - 不使用 `chrome.storage.sync`；`storage.local` 預設 10 MB 配額對稀疏記錄綽綽有餘。
 - 不在瀏覽器重啟後恢復擷取。
