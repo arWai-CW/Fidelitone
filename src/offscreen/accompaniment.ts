@@ -2,7 +2,7 @@ import { ACCOMPANIMENT_ALIGN_DELAY_S, CROSSOVER_FREQ } from "./offscreen-state";
 import { semitonesToPitchScale } from "../lib/dsp/math";
 import { postWorkletMessage } from "../lib/dsp/worklet-message";
 import type { AudioGraph } from "./audio-graph";
-import type { EngineSwitching } from "./engine-switching";
+import type { PitchEngine } from "./pitch-engine";
 
 export interface AccompanimentNodes {
   crossover: AudioWorkletNode;
@@ -25,7 +25,7 @@ export class AccompanimentGraph {
   private accompanimentDelay: DelayNode | null = null;
   private accompanimentMixBus: GainNode | null = null;
 
-  constructor(private graph: AudioGraph, private engine: EngineSwitching) {}
+  constructor(private graph: AudioGraph, private engine: PitchEngine) {}
 
   get enabled(): boolean {
     return this._enabled;
@@ -70,7 +70,7 @@ export class AccompanimentGraph {
     if (this._ready && this.nodes) return true;
     if (this.initPromise) return this.initPromise;
 
-    const ownsSignalsmith = !this.engine.signalsmithAvailable;
+    const ownsEngine = !this.engine.ready;
     this.initPromise = (async () => {
       let newCrossover: AudioWorkletNode | null = null;
       let newLowbandResampler: AudioWorkletNode | null = null;
@@ -79,7 +79,7 @@ export class AccompanimentGraph {
       let newMixBus: GainNode | null = null;
 
       try {
-        await this.graph.ensureReady(semitones, preserveFormants);
+        await this.graph.ensureReady();
 
         if (!this.crossoverModuleLoaded) {
           await this.graph.requireContext().audioWorklet.addModule(
@@ -137,7 +137,7 @@ export class AccompanimentGraph {
           { label: "lowband-resampler", retries: 1, retryDelayMs: 250, timeoutMs: 10000 },
         );
 
-        if (!(await this.engine.initSignalsmith(semitones, preserveFormants)) || !this.engine.signalsmithNode) {
+        if (!(await this.engine.ensureReady(semitones, preserveFormants)) || !this.engine.signalsmithNode) {
           throw new Error("Signalsmith Stretch could not be initialized");
         }
         this.engine.dryPitch(semitones);
@@ -157,7 +157,7 @@ export class AccompanimentGraph {
         this.graph.disconnectNode(newLimiter);
         this.graph.disconnectNode(newDelay);
         this.graph.disconnectNode(newMixBus);
-        if (ownsSignalsmith && this.engine.signalsmithAvailable) {
+        if (ownsEngine && this.engine.ready) {
           this.graph.disconnectNode(this.engine.signalsmithNode);
           this.engine.reset();
         }

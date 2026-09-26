@@ -230,37 +230,13 @@
 					</label>
 				</section>
 
-				<section class="strip signal-panel control-lock" aria-labelledby="signalHeading">
+				<section class="strip signal-panel" aria-labelledby="signalHeading">
 					<h2 id="signalHeading">信號路徑</h2>
-					<div class="block-label" id="engineHeading">處理引擎</div>
-					<div class="engine-list" id="engineControl" role="radiogroup" aria-label="處理引擎">
-						<button
-							class="engine-item"
-							id="engineSignalsmith"
-							type="button"
-							role="radio"
-							aria-checked="false"
-							data-engine="signalsmith"
-						>
-							<div class="engine-info">
-								<span class="engine-name">Signalsmith Stretch</span>
-								<span class="engine-desc">適合人聲、獨奏樂器、高品質時域拉伸</span>
-							</div>
-						</button>
-						<button
-							class="engine-item"
-							id="engineRubberband"
-							type="button"
-							role="radio"
-							aria-checked="false"
-							data-engine="rubberband"
-						>
-							<div class="engine-info">
-								<span class="engine-name">RubberBand</span>
-								<span class="engine-desc">適合複雜音源、多聲部、頻域處理、共振峰保護</span>
-							</div>
-						</button>
-					</div>
+					<p class="route-line">
+						<span class="route-mark" id="routeMark" aria-hidden="true"></span>
+						<span class="route-name" id="routeName">待命</span>
+						<span class="route-desc" id="routeDesc">尚未連線</span>
+					</p>
 				</section>
 
 				<section class="strip youtube-panel" id="youtubePanel" aria-labelledby="youtubeHeading" hidden>

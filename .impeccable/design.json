@@ -189,7 +189,7 @@
       },
       "label": {
         "displayName": "Label",
-        "purpose": "組標籤（處理引擎、基準音量）11.5px/600/0.2em；刻度標籤 11px/600/0.04em tabular-nums；wordmark 17px/700/0.16em 全大寫。"
+        "purpose": "組標籤（基準音量）11.5px/600/0.2em；刻度標籤 11px/600/0.04em tabular-nums；wordmark 17px/700/0.16em 全大寫。"
       },
       "fieldNumber": {
         "displayName": "Field Number",
@@ -291,12 +291,12 @@
       "css": ".ds-volume-field{display:inline-flex;align-items:center;gap:8px;font-family:var(--font,\"Barlow Condensed\",\"Noto Sans TC\",ui-sans-serif,sans-serif)}.ds-volume-number{width:78px;height:44px;padding:0 4px;background:var(--ground-ink,#0a0a0a);color:var(--punched-white,#f2f2f2);border:1px solid var(--spool,#2e2e2e);border-radius:3px;font-family:inherit;font-size:25px;font-weight:700;font-variant-numeric:tabular-nums;text-align:center;-moz-appearance:textfield;transition:border-color 140ms cubic-bezier(.32,.72,0,1)}.ds-volume-number::-webkit-outer-spin-button,.ds-volume-number::-webkit-inner-spin-button{opacity:.45}.ds-volume-number:focus-visible{border-color:var(--orange,#ff5a1f);outline:2px solid var(--orange,#ff5a1f);outline-offset:1px}.ds-volume-percent{font-size:17px;font-weight:600;color:var(--text-3,#8d8d8d)}"
     },
     {
-      "name": "Engine Card",
-      "kind": "card",
-      "refersTo": "card-engine",
-      "description": "信號路徑選卡：ink 底＋1px spool＋3px 圓角＋右緣撕齒孔列。selected＝整卡反白；disabled 改 charred 底不吃整體 opacity，disabled+selected 加右上 14px 打孔角。",
-      "html": "<button class=\"ds-engine-item is-selected\" type=\"button\" role=\"radio\" aria-checked=\"true\"><span class=\"ds-engine-info\"><span class=\"ds-engine-name\">Signalsmith Stretch</span><span class=\"ds-engine-desc\">適合人聲、獨奏樂器、高品質時域拉伸</span></span></button>",
-      "css": ".ds-engine-item{position:relative;width:100%;text-align:left;padding:11px 36px 11px 13px;background:var(--ground-ink,#0a0a0a);color:var(--punched-white,#f2f2f2);border:1px solid var(--spool,#2e2e2e);border-radius:3px;font-family:var(--font,\"Barlow Condensed\",\"Noto Sans TC\",ui-sans-serif,sans-serif);cursor:pointer;transition:border-color 140ms cubic-bezier(.32,.72,0,1),background 140ms cubic-bezier(.32,.72,0,1)}.ds-engine-item::after{content:\"\";position:absolute;top:50%;right:11px;transform:translateY(-50%);width:4px;height:17px;background-image:radial-gradient(circle 1.7px at 50% 3px,var(--spool,#2e2e2e) 98%,transparent 100%);background-size:100% 8px;background-repeat:repeat-y;pointer-events:none}.ds-engine-item:hover:not(:disabled){border-color:var(--orange,#ff5a1f)}.ds-engine-item:focus-visible{outline:2px solid var(--orange,#ff5a1f);outline-offset:2px}.ds-engine-info{display:flex;flex-direction:column;gap:3px}.ds-engine-name{font-size:15px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}.ds-engine-desc{font-size:12.5px;font-weight:400;line-height:1.5;color:var(--text-2,#a8a8a8)}.ds-engine-item.is-selected{background:var(--punched-white,#f2f2f2);border-color:var(--punched-white,#f2f2f2);color:var(--on-orange,#0a0a0a)}.ds-engine-item.is-selected .ds-engine-desc{color:rgba(10,10,10,.72)}.ds-engine-item.is-selected::after{background-image:radial-gradient(circle 1.7px at 50% 3px,var(--on-orange,#0a0a0a) 98%,transparent 100%)}.ds-engine-item:disabled{background:var(--surface-charred,#1a1a1a);border-color:var(--surface-charred,#1a1a1a);cursor:default}.ds-engine-item:disabled.is-selected{background:var(--punched-white,#f2f2f2);border-color:var(--punched-white,#f2f2f2)}.ds-engine-item:disabled.is-selected::before{content:\"\";position:absolute;top:-1px;right:-1px;width:14px;height:14px;background:var(--surface-panel,#121212);clip-path:polygon(0 0,100% 0,100% 100%)}"
+      "name": "Route Line",
+      "kind": "readout",
+      "refersTo": "readout-route",
+      "description": "信號路徑唯讀讀數（ADR-0007 單一引擎後無可選）：ink 底＋1px spool＋3px 圓角，內含 9px 記號＋全大寫名稱＋12.5px 說明。不可 hover、不可點、無選取態。passthrough（引擎未啟動）時記號轉 grease 叉、名稱與說明轉橘色。",
+      "html": "<p class=\"ds-route-line\" data-route=\"signalsmith\"><span class=\"ds-route-mark\" aria-hidden=\"true\"></span><span class=\"ds-route-name\">Signalsmith</span><span class=\"ds-route-desc\">即時移調，節奏不變</span></p>",
+      "css": ".ds-route-line{display:flex;align-items:baseline;gap:9px;margin:0;padding:11px 13px;background:var(--ground-ink,#0a0a0a);color:var(--punched-white,#f2f2f2);border:1px solid var(--spool,#2e2e2e);border-radius:3px;font-family:var(--font,\"Barlow Condensed\",\"Noto Sans TC\",ui-sans-serif,sans-serif)}.ds-route-mark{flex:none;width:9px;height:9px;border:1.4px solid var(--text-3,#8d8d8d);border-radius:1px;transform:translateY(1px)}.ds-route-line[data-route=\"signalsmith\"] .ds-route-mark,.ds-route-line[data-route=\"accompaniment\"] .ds-route-mark{background:var(--orange,#ff5a1f);border-color:var(--orange,#ff5a1f)}.ds-route-line[data-route=\"bypass\"] .ds-route-mark{border-color:var(--text-2,#a8a8a8)}.ds-route-line[data-route=\"passthrough\"] .ds-route-mark{border-color:var(--orange,#ff5a1f);background:none}.ds-route-line[data-route=\"passthrough\"] .ds-route-name,.ds-route-line[data-route=\"passthrough\"] .ds-route-desc{color:var(--orange,#ff5a1f)}.ds-route-name{font-size:15px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}.ds-route-desc{font-size:12.5px;font-weight:400;line-height:1.5;color:var(--text-2,#a8a8a8)}"
     },
     {
       "name": "Punched Window (Error)",
@@ -393,7 +393,7 @@
     ],
     "donts": [
       "Don't 用色相表達狀態或分類內容——不新增第二種彩色、不做霓虹點綴、不做狀態色燈。",
-      "Don't 對鎖定／停用的卡施加整體 opacity：底色會逼近反白、對比會掉，且「反白＝live」的語意被偷走；改用 charred 底＋打孔角（見 engine card disabled）。",
+      "Don't 對鎖定／停用的區塊施加整體 opacity：底色會逼近反白、對比會掉，且「反白＝live」的語意被偷走；改用 charred 底＋打孔角。",
       "Don't 做裝飾性深度：零偏移色暈、硬偏移方塊陰影、玻璃模糊都不屬於這個台面；陰影只給有實體的零件。",
       "Don't 把字級當層級——同一條 strip 內用字重、字距與位置分層（**The Caps-and-Tracking Rule**）；不用負字距。",
       "Don't 拿波形、等化器、滑桿堆疊或任何通用「音訊擴充功能」預設件當裝飾；本世界的量測件是刻度與打孔。",

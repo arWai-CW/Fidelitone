@@ -3,11 +3,10 @@ import {
   routeFor,
   type CaptureEvent,
   type CaptureTarget,
-  type Engine,
   type SwitchCaptureRequest,
 } from "./offscreen-state";
 import { AudioGraph } from "./audio-graph";
-import { EngineSwitching } from "./engine-switching";
+import { PitchEngine } from "./pitch-engine";
 import { AccompanimentGraph } from "./accompaniment";
 import { CaptureManager } from "./capture-manager";
 import { GraphRouter } from "./graph-router";
@@ -22,7 +21,7 @@ export interface OffscreenControllerOptions {
 
 export class OffscreenController implements OffscreenControllerInterface {
   readonly graph = new AudioGraph();
-  readonly engine = new EngineSwitching(this.graph);
+  readonly engine = new PitchEngine(this.graph);
   readonly accompaniment = new AccompanimentGraph(this.graph, this.engine);
   readonly capture: CaptureManager;
   readonly router: GraphRouter;
@@ -35,8 +34,7 @@ export class OffscreenController implements OffscreenControllerInterface {
 
   constructor(private options: OffscreenControllerOptions = {}) {
     this.capture = new CaptureManager(this.graph, this.accompaniment, {
-      ensureGraphReady: (semitones, preserveFormants) =>
-        this.graph.ensureReady(semitones, preserveFormants),
+      ensureGraphReady: () => this.graph.ensureReady(),
       connectSource: () =>
         this.router.connectSource({
           bypass: this.isBypass,
@@ -59,6 +57,11 @@ export class OffscreenController implements OffscreenControllerInterface {
     if (!Number.isFinite(semitones)) return false;
 
     this.currentSemitones = semitones;
+    // Build the engine before the capture arrives: a pitch the user can see on
+    // the rail must be one the engine is actually able to apply.
+    void this.engine.ensureReady(semitones, this.preserveFormants).catch((err) =>
+      console.error("[offscreen] Engine init failed:", err),
+    );
     this.applyCurrentPitch();
     if (!this.capture.source) {
       this.capture.setPendingConnect(true);
@@ -101,7 +104,6 @@ export class OffscreenController implements OffscreenControllerInterface {
   async setFormants(value: { preserve: boolean }): Promise<boolean> {
     if (typeof value?.preserve !== "boolean") return false;
     this.preserveFormants = value.preserve;
-    this.graph.setFormantOption(this.preserveFormants);
     void this.engine.setFormants(this.preserveFormants, this.currentSemitones).catch((err) =>
       console.error("[offscreen] Signalsmith formant update failed:", err),
     );
@@ -169,28 +171,6 @@ export class OffscreenController implements OffscreenControllerInterface {
     return true;
   }
 
-  async setEngine(engine: Engine): Promise<boolean> {
-    return this.engine.setEngine(
-      engine,
-      {
-        connected: !!this.capture.source,
-        bypass: this.isBypass,
-        accompanimentMode: this.isAccompanimentMode,
-      },
-      (preserveGains) =>
-        this.router.connectSource(
-          {
-            bypass: this.isBypass,
-            accompanimentMode: this.isAccompanimentMode,
-          },
-          preserveGains,
-        ),
-      () => this.applyCurrentPitch(),
-      this.currentSemitones,
-      this.preserveFormants,
-    );
-  }
-
   /**
    * ADR-0004: one atomic handover — warm up the slow work while the old tab
    * still plays, close the output gate, apply the incoming page's settings,
@@ -233,7 +213,6 @@ export class OffscreenController implements OffscreenControllerInterface {
   }
 
   getState() {
-    const engine = this.engine.effectiveEngine();
     return {
       ready: this.graph.ready,
       state: {
@@ -243,16 +222,13 @@ export class OffscreenController implements OffscreenControllerInterface {
         bypass: this.isBypass,
         preserveFormants: this.preserveFormants,
         accompanimentMode: this.isAccompanimentMode,
-        engine,
-        selectedEngine: this.engine.selectedEngine,
         route: routeFor({
           bypass: this.isBypass,
           accompanimentMode: this.isAccompanimentMode,
           accompanimentReady: this.accompaniment.ready,
-          engine,
+          engineReady: this.engine.ready,
         }),
         captureLost: this.capture.captureLost,
-        engineAvailability: this.engine.availability,
         tabId: this.capture.tabId,
         page: this.capture.page,
       },
@@ -268,8 +244,8 @@ export class OffscreenController implements OffscreenControllerInterface {
     this.capture.stop(clearCaptureLost);
     await this.accompaniment.resetWorklets();
     this.router.rewire();
-    await this.graph.teardown();
     this.engine.reset();
+    await this.graph.teardown();
     this.accompaniment.reset();
   }
 
@@ -279,23 +255,22 @@ export class OffscreenController implements OffscreenControllerInterface {
       bypass: this.isBypass,
       preserveFormants: this.preserveFormants,
       accompanimentMode: this.isAccompanimentMode,
-      engine: this.engine.selectedEngine,
     };
   }
 
   /**
-   * Builds the slow pieces (worklets, Signalsmith WASM) before the gate closes.
-   * Neither call touches the audible routing, so the outgoing tab keeps playing.
+   * Builds the slow pieces (worklets, the Signalsmith engine) before the gate
+   * closes. Neither call touches the audible routing, so the outgoing tab keeps
+   * playing through the handover.
    */
   private async preWarm(settings: ProcessingSettings): Promise<void> {
     if (settings.accompanimentMode && !this.accompaniment.ready) {
       await this.accompaniment.ensureEnabled(this.currentSemitones, settings.preserveFormants).catch((err) =>
         console.warn("[offscreen] Accompaniment pre-warm failed:", err),
       );
-    }
-    if (settings.engine === "signalsmith" && !this.engine.signalsmithAvailable) {
-      await this.engine.initSignalsmith(settings.pitch, settings.preserveFormants).catch((err) =>
-        console.warn("[offscreen] Signalsmith pre-warm failed:", err),
+    } else if (!this.accompaniment.ready) {
+      await this.engine.ensureReady(this.currentSemitones, settings.preserveFormants).catch((err) =>
+        console.warn("[offscreen] Engine pre-warm failed:", err),
       );
     }
   }
@@ -311,29 +286,14 @@ export class OffscreenController implements OffscreenControllerInterface {
       throw new Error("Unable to apply bypass routing");
     }
 
-    // Availability issues degrade instead of aborting: effectiveEngine() already
-    // falls back, and a missing engine must never block a tab follow.
-    const engine = this.resolveAvailableEngine(settings.engine);
-    if (!(await this.setEngine(engine))) {
-      console.warn("[offscreen] Engine unavailable, keeping", this.engine.selectedEngine);
-    }
+    // Availability issues degrade instead of aborting: a missing engine must
+    // never block a tab follow, and the graph falls back to passthrough (ADR-0007).
     if (!(await this.setAccompaniment({ enabled: settings.accompanimentMode }))) {
       console.warn(
         "[offscreen] Accompaniment unavailable, staying",
         this.isAccompanimentMode ? "ON" : "OFF",
       );
     }
-  }
-
-  private resolveAvailableEngine(requested: Engine): Engine {
-    const availability = this.engine.availability;
-    if (availability[requested]) return requested;
-    const fallback: Engine = requested === "signalsmith" ? "rubberband" : "signalsmith";
-    if (availability[fallback]) {
-      console.warn("[offscreen] Requested engine unavailable, using", fallback);
-      return fallback;
-    }
-    return requested;
   }
 
   private async restoreSettings(settings: ProcessingSettings): Promise<void> {
@@ -345,15 +305,10 @@ export class OffscreenController implements OffscreenControllerInterface {
   }
 
   private applyCurrentPitch(): void {
-    const pitchScale = semitonesToPitchScale(this.currentSemitones);
-    if (this.graph.rubberbandNode && this.graph.rubberbandReadyStatus) {
-      this.graph.setPitchScale(pitchScale);
-      this.graph.rubberbandNode.port.postMessage({ type: "SET_PITCH", pitchScale });
-    }
     if (this.accompaniment.ready) {
       this.accompaniment.applyDryPitch(this.currentSemitones);
     }
-    if (this.engine.signalsmithAvailable) {
+    if (this.engine.ready) {
       void this.engine.applyPitch(this.currentSemitones, this.preserveFormants).catch((err) =>
         console.error("[offscreen] Signalsmith pitch update failed:", err),
       );
@@ -361,6 +316,6 @@ export class OffscreenController implements OffscreenControllerInterface {
   }
 
   async start(): Promise<void> {
-    await this.graph.ensureReady(this.currentSemitones, this.preserveFormants);
+    await this.graph.ensureReady();
   }
 }

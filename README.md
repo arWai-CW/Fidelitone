@@ -11,8 +11,8 @@ Works with YouTube, Spotify Web, SoundCloud, and any other web audio source.
 - Real-time pitch shifting with minimal latency
 - Adjustable range: -12 to +12 semitones
 - Preserves original tempo
-- Per-page memory: every page URL keeps its own pitch, bypass, formant,
-  accompaniment and engine settings (sparse — only non-default values are stored)
+- Per-page memory: every page URL keeps its own pitch, bypass, formant and
+  accompaniment settings (sparse — only non-default values are stored)
 - Follows the tab you switch to, and applies that page's remembered settings
 - Toolbar badge shows where the audio is coming from (`ON` / `ON·` / `!`)
 - YouTube volume control: set the page volume to an exact 0–100 value with a
@@ -27,8 +27,8 @@ Works with YouTube, Spotify Web, SoundCloud, and any other web audio source.
 ### From Source
 
 ```bash
-git clone https://github.com/your-username/pitch-transpose-extension.git
-cd pitch-transpose-extension
+git clone https://github.com/your-username/fidelitone.git
+cd fidelitone
 npm install
 npm run build
 ```
@@ -39,6 +39,18 @@ Then load the extension in Chrome:
 2. Enable "Developer mode"
 3. Click "Load unpacked"
 4. Select the `dist/` folder
+
+### Development
+
+```bash
+npm test           # vitest
+npm run typecheck  # tsc --noEmit
+npm run dev        # content:watch + vite --watch
+```
+
+`npm run build` needs nothing beyond the npm dependencies — there is no native
+toolchain step. CI runs the same three checks plus a build-output assertion
+(`.github/workflows/ci.yml`).
 
 
 ## Usage
@@ -87,9 +99,9 @@ without the fragment), so `https://www.youtube.com/watch?v=abc` and
 independent pitches, while the very same URL opened in two tabs shares one record.
 
 - Storage is sparse: only values that differ from the defaults are written, so a
-  page you have never tweaked always comes back at `0 st` / Signalsmith / bypass
-  off. Returning a value to its default deletes the field, and an all-default
-  record deletes the key.
+  page you have never tweaked always comes back at `0 st` / bypass off.
+  Returning a value to its default deletes the field, and an all-default record
+  deletes the key.
 - `snapToInteger` and `youtubeBaseVolume` (the YouTube panel's baseline volume)
   are global interface preferences and are not remembered per page.
 - Keys live in `chrome.storage.local` under `page:<url>`. Records written by the
@@ -135,7 +147,10 @@ What happens when you change tabs:
 
 This extension uses Chrome's Tab Capture API to capture audio from the active tab,
 processes it through WebAssembly with the Signalsmith Stretch library, and outputs
-the transposed audio via an offscreen document.
+the transposed audio via an offscreen document. There is one pitch engine; the
+popup's **信號路徑** row reports which path the audio is actually travelling
+through (`Signalsmith` / `伴奏` / `旁路` / `未處理`), so a failed engine shows up
+as unprocessed audio rather than a slider that appears to do nothing.
 
 The extension is split into three contexts plus one injected script (see `docs/adr/`):
 
@@ -158,14 +173,40 @@ The extension is split into three contexts plus one injected script (see `docs/a
   `<video>.volume`). They never touch playback state and never rewrite volume
   on their own (ADR-0005).
 
+### What is original here, and what is not
+
+Worth being explicit, because it is the first thing an audio engineer will ask.
+
+**Borrowed.** The pitch shifting itself is
+[Signalsmith Stretch](https://github.com/Signalsmith-Audio/signalsmith-stretch)
+(MIT) — a time-domain stretcher this project calls, schedules, and wraps. The
+175 Hz crossover and the output limiter are textbook Butterworth / dynamics
+compressor nodes.
+
+**Original to this repo.**
+
+- `src/processors/lowband-resampler.js` — a bounded, phase-locked WSOLA/PSOLA
+  resampler for the low band. It estimates low-band periods, takes
+  period-synchronous timeline corrections rather than wrapping into stale
+  ring-buffer samples, and keeps read latency bounded at rates both below and
+  above 1.0. The reason it exists: the low band does not go through the STFT
+  phase vocoder at all, because a 60 Hz bass note has too few periods to survive
+  that.
+- The graph and state design around it — one atomic handover, a master output
+  gate that fades around it, per-URL memory with sparse storage, a
+  reconciliation state machine for "the audio is over there, not here".
+- The MAIN-world content-script bridge, because YouTube's player API is
+  page-owned JavaScript that an isolated-world content script cannot reach.
+
 
 ## License
 
-This project includes components under different licenses. See [LICENSE](LICENSE)
-for full details.
+MIT — see [LICENSE](LICENSE) for full details.
 
-- **Rubber Band Library**: GPLv2+ (Copyright (C) 2007-2024 Tim Bright / Breakfast Quay)
-  - https://breakfastquay.com/rubberband/
-- **Signalsmith Stretch**: MIT (Copyright (c) Geraint Luff / Signalsmith Audio)
-  - https://github.com/Signalsmith-Audio/signalsmith-stretch
-- **Project code**: MIT
+The one bundled third-party component, **Signalsmith Stretch**, is also MIT
+(Copyright (c) Geraint Luff / Signalsmith Audio):
+https://github.com/Signalsmith-Audio/signalsmith-stretch
+
+Earlier builds bundled the Rubber Band Library (GPLv2+); it was removed in
+[ADR-0007](docs/adr/0007-single-pitch-engine.md), which is why this project is
+permissively licensed throughout.

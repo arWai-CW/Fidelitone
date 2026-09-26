@@ -1,21 +1,25 @@
-import type { CaptureState as AudioCaptureState, Engine as AudioEngine, ProcessingSettings } from "../lib/audio-state";
+import type { CaptureState as AudioCaptureState, ProcessingSettings, SignalRoute as AudioSignalRoute } from "../lib/audio-state";
 
 export type CaptureState = AudioCaptureState;
-export type Engine = AudioEngine;
+export type SignalRoute = AudioSignalRoute;
 
 export const CROSSOVER_FREQ = 175;
 export const ACCOMPANIMENT_ALIGN_DELAY_S = 0.09;
-export const CROSSFADE_SEC = 0.05;
 
+/**
+ * Which path a captured stream is travelling through. `passthrough` is the
+ * honest one: the engine failed to initialise, so the graph passes audio through
+ * unprocessed and the popup says so rather than pretending (ADR-0007).
+ */
 export function routeFor(options: {
   bypass: boolean;
   accompanimentMode: boolean;
   accompanimentReady: boolean;
-  engine: Engine;
-}): string {
+  engineReady: boolean;
+}): SignalRoute {
   if (options.bypass) return "bypass";
   if (options.accompanimentMode && options.accompanimentReady) return "accompaniment";
-  return options.engine;
+  return options.engineReady ? "signalsmith" : "passthrough";
 }
 
 /**

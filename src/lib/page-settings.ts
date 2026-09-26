@@ -4,7 +4,7 @@
 // query, no fragment), and capture decisions are derived from plain data so
 // they can be unit tested without chrome.* APIs.
 
-import type { Engine, ProcessingSettings } from "./audio-state";
+import type { ProcessingSettings } from "./audio-state";
 
 /** Sparse per-page overrides. Absent keys mean "use PAGE_DEFAULTS". */
 export interface PageSettings {
@@ -12,13 +12,10 @@ export interface PageSettings {
   bypass?: boolean;
   preserveFormants?: boolean;
   accompanimentMode?: boolean;
-  engine?: Engine;
 }
 
 /** A page record resolved against the defaults (the unit applied on switch). */
 export type ResolvedPageSettings = ProcessingSettings;
-
-export const DEFAULT_ENGINE: Engine = "signalsmith";
 
 /** Clean defaults applied to a page that has never been configured. */
 export const PAGE_DEFAULTS: ResolvedPageSettings = {
@@ -26,7 +23,6 @@ export const PAGE_DEFAULTS: ResolvedPageSettings = {
   bypass: false,
   preserveFormants: false,
   accompanimentMode: false,
-  engine: DEFAULT_ENGINE,
 };
 
 /** Keys owned by a page memory record. */
@@ -35,10 +31,13 @@ export const PAGE_SETTING_KEYS = [
   "bypass",
   "preserveFormants",
   "accompanimentMode",
-  "engine",
 ] as const satisfies ReadonlyArray<keyof PageSettings>;
 
-/** Flat keys written before ADR-0004; removed once on upgrade. */
+/**
+ * Flat keys written before ADR-0004; removed once on upgrade. `engine` was in
+ * the list until ADR-0007 dropped the choice — a record may still carry it, and
+ * it is simply no longer a key anything reads.
+ */
 export const LEGACY_SETTING_KEYS = [
   "connected",
   "pitch",
@@ -114,10 +113,6 @@ export function isYouTubePage(page: string | null | undefined): boolean {
   return parsed !== null && parsed.protocol === "https:" && parsed.hostname === "www.youtube.com";
 }
 
-function isEngine(value: unknown): value is Engine {
-  return value === "rubberband" || value === "signalsmith";
-}
-
 /** Merges sparse stored overrides onto the clean defaults. */
 export function resolvePageSettings(overrides: unknown): ResolvedPageSettings {
   const record = (overrides && typeof overrides === "object" ? overrides : {}) as Record<string, unknown>;
@@ -127,7 +122,6 @@ export function resolvePageSettings(overrides: unknown): ResolvedPageSettings {
     bypass: record.bypass === true,
     preserveFormants: record.preserveFormants === true,
     accompanimentMode: record.accompanimentMode === true,
-    engine: isEngine(record.engine) ? record.engine : PAGE_DEFAULTS.engine,
   };
 }
 
@@ -142,7 +136,6 @@ export function diffAgainstDefaults(next: ResolvedPageSettings): PageSettings {
   if (next.accompanimentMode !== PAGE_DEFAULTS.accompanimentMode) {
     sparse.accompanimentMode = next.accompanimentMode;
   }
-  if (next.engine !== PAGE_DEFAULTS.engine) sparse.engine = next.engine;
   return sparse;
 }
 

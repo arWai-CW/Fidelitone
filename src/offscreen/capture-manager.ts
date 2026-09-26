@@ -3,7 +3,7 @@ import type { AccompanimentGraph } from "./accompaniment";
 import type { CaptureEvent, CaptureTarget } from "./offscreen-state";
 
 export interface CaptureCallbacks {
-  ensureGraphReady(semitones: number, preserveFormants: boolean): Promise<void>;
+  ensureGraphReady(): Promise<void>;
   connectSource(): boolean;
   applyCurrentPitch(): void;
   teardownGraph(clearCaptureLost: boolean): Promise<void>;
@@ -77,7 +77,7 @@ export class CaptureManager {
     target?: CaptureTarget,
   ): Promise<void> {
     const previousTarget = this._target;
-    await this.callbacks.ensureGraphReady(semitones, preserveFormants);
+    await this.callbacks.ensureGraphReady();
     const oldSource = this._source;
     const oldStream = this.activeStream;
     const modeBefore = this.accompaniment.enabled;

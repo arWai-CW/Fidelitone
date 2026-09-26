@@ -6,7 +6,6 @@ dist.zip
 .codegraph
 .playwright-mcp
 .zcode
-src/wasm/build/
 .agents/
 skills-lock.json
 

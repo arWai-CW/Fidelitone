@@ -7,7 +7,6 @@ import {
   formatSemitones,
   isProcessingLocked,
   isSettingsLocked,
-  selectEngine,
   setActiveTab,
   setBypass,
   setCaptureIdentity,
@@ -44,26 +43,27 @@ describe("popup state", () => {
     expect(isProcessingLocked(state)).toBe(false);
   });
 
-  it("applies live capture state without losing the selected engine fallback", () => {
+  it("applies live capture state including the signal route", () => {
     const state = applyCaptureState(
-      selectEngine(createPopupState(), "signalsmith"),
+      createPopupState(),
       capture({
         pitch: 3,
         bypass: true,
         preserveFormants: true,
-        engine: "rubberband",
-        selectedEngine: "signalsmith",
         route: "bypass",
       }),
     );
 
-    expect(state.selectedEngine).toBe("signalsmith");
     expect(state.bypass).toBe(true);
     expect(state.route).toBe("bypass");
-    expect(state.engineAvailability).toEqual({
-      signalsmith: true,
-      rubberband: false,
-    });
+  });
+
+  // ADR-0007: the route is the only thing that tells the user the audio is
+  // passing through unprocessed, so it must survive a snapshot that omits it.
+  it("keeps the last known route when a snapshot omits it", () => {
+    const withRoute = applyCaptureState(createPopupState(), capture({ route: "passthrough" }));
+    expect(withRoute.route).toBe("passthrough");
+    expect(applyCaptureState(withRoute, capture({})).route).toBe("passthrough");
   });
 
   it("keeps pitch math at the UI contract", () => {
@@ -73,14 +73,13 @@ describe("popup state", () => {
     expect(formatSemitones(-7)).toBe("-7.00");
   });
 
-  it("rolls back bypass and engine selection through pure transitions", () => {
+  it("rolls back bypass through a pure transition", () => {
     const connected = setConnected(createPopupState(), true);
     expect(setBypass(connected, true).bypass).toBe(true);
-    expect(selectEngine(connected, "signalsmith").selectedEngine).toBe("signalsmith");
   });
 
-  it("defaults the selected engine to Signalsmith", () => {
-    expect(createPopupState().selectedEngine).toBe("signalsmith");
+  it("starts with no route until the offscreen document reports one", () => {
+    expect(createPopupState().route).toBeNull();
   });
 
   it("locks controls only when the active tab sits on another page", () => {

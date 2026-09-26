@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   BADGE_COLORS,
-  DEFAULT_ENGINE,
   LEGACY_RECORD_PREFIX,
   LEGACY_SETTING_KEYS,
   PAGE_DEFAULTS,
@@ -100,7 +99,6 @@ describe("sparse page settings", () => {
       bypass: false,
       preserveFormants: false,
       accompanimentMode: false,
-      engine: DEFAULT_ENGINE,
     });
   });
 
@@ -110,11 +108,16 @@ describe("sparse page settings", () => {
     );
   });
 
+  // ADR-0007: a record written by an older build may still carry `engine`.
+  // Nothing reads it, and re-sparsifying must drop it rather than keep it alive.
+  it("drops a stale engine field instead of persisting it", () => {
+    expect(resolvePageSettings({ engine: "rubberband" })).toEqual(PAGE_DEFAULTS);
+    expect(diffAgainstDefaults({ ...PAGE_DEFAULTS, pitch: 3 })).toEqual({ pitch: 3 });
+    expect(writePageSetting({ engine: "rubberband", pitch: 3 }, { pitch: 4 })).toEqual({ pitch: 4 });
+  });
+
   it("stores only non-default values", () => {
     expect(diffAgainstDefaults({ ...PAGE_DEFAULTS, pitch: 3 })).toEqual({ pitch: 3 });
-    expect(diffAgainstDefaults({ ...PAGE_DEFAULTS, engine: "rubberband" })).toEqual({
-      engine: "rubberband",
-    });
     expect(diffAgainstDefaults({ ...PAGE_DEFAULTS, bypass: true, preserveFormants: true })).toEqual({
       bypass: true,
       preserveFormants: true,
@@ -130,7 +133,6 @@ describe("sparse page settings", () => {
   it("re-sparsifies after an edit so returning to default deletes the key", () => {
     expect(writePageSetting({ pitch: 3 }, { pitch: 4 })).toEqual({ pitch: 4 });
     expect(writePageSetting({ pitch: 3 }, { pitch: 0 })).toEqual({});
-    expect(writePageSetting({ engine: "rubberband" }, { engine: "signalsmith" })).toEqual({});
     expect(writePageSetting(undefined, { pitch: -2, bypass: true })).toEqual({
       pitch: -2,
       bypass: true,

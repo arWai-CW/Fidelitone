@@ -1,5 +1,5 @@
 import type { AudioGraph } from "./audio-graph";
-import type { EngineSwitching } from "./engine-switching";
+import type { PitchEngine } from "./pitch-engine";
 import type { AccompanimentGraph } from "./accompaniment";
 
 export interface GraphRoute {
@@ -10,90 +10,70 @@ export interface GraphRoute {
 export class GraphRouter {
   constructor(
     private graph: AudioGraph,
-    private engine: EngineSwitching,
+    private engine: PitchEngine,
     private accompaniment: AccompanimentGraph,
     private getSource: () => MediaStreamAudioSourceNode | null,
   ) {}
 
-  rewire(resetGains = true): void {
+  /**
+   * Disconnect everything, then reconnect only the active path. ADR-0001:
+   * patching individual edges is what left a +6 dB residual gain behind, so
+   * routing always starts from a fully torn-down graph.
+   */
+  rewire(): void {
     const source = this.getSource();
     source?.disconnect();
-    this.graph.disconnectNode(this.graph.rubberbandNode);
     this.graph.disconnectNode(this.accompaniment.nodes?.crossover ?? null);
     this.graph.disconnectNode(this.accompaniment.nodes?.lowband ?? null);
     this.graph.disconnectNode(this.engine.signalsmithNode);
     this.graph.disconnectNode(this.graph.passthroughNode);
-    this.graph.disconnectNode(this.graph.gainANode);
-    this.graph.disconnectNode(this.graph.gainBNode);
     this.graph.disconnectNode(this.accompaniment.nodes?.delay ?? null);
     this.graph.disconnectNode(this.accompaniment.nodes?.mixBus ?? null);
     this.graph.disconnectNode(this.accompaniment.nodes?.limiter ?? null);
-
-    if (resetGains) {
-      this.engine.setGains(this.engine.effectiveEngine());
-    }
   }
 
-  connectSource(route: GraphRoute, preserveGains = false): boolean {
+  connectSource(route: GraphRoute): boolean {
     const source = this.getSource();
     if (!source || !this.graph.ready) {
       console.log("[offscreen] connectSource: skipped - source:", !!source, "graphReady:", this.graph.ready);
       return false;
     }
 
-    return this.connectRoute(source, route, preserveGains);
+    return this.connectRoute(source, route);
   }
 
-  private connectRoute(source: MediaStreamAudioSourceNode, route: GraphRoute, preserveGains: boolean): boolean {
-    if (route.bypass) {
-      this.rewire();
-      this.graph.requirePassthrough().connect(this.graph.requireOutput());
-      source.connect(this.graph.requirePassthrough());
-      console.log("[offscreen] Source → passthrough (bypass)");
-      return true;
-    }
+  private connectRoute(source: MediaStreamAudioSourceNode, route: GraphRoute): boolean {
+    this.rewire();
+
+    if (route.bypass) return this.connectPassthrough(source, "bypass");
 
     if (route.accompanimentMode && this.accompaniment.ready && this.accompaniment.nodes) {
-      return this.connectAccompaniment(source, route.bypass);
+      return this.connectAccompaniment(source);
     }
 
-    this.rewire(!preserveGains);
-    let connected = false;
-    if (this.graph.rubberbandNode && this.graph.rubberbandReadyStatus && this.graph.gainBNode) {
-      this.graph.rubberbandNode.connect(this.graph.gainBNode);
-      this.graph.gainBNode.connect(this.graph.requireOutput());
-      source.connect(this.graph.rubberbandNode);
-      connected = true;
-      console.log("[offscreen] Source → rbNode → gainB → destination (RubberBand)");
-    }
-    const signalNode = this.engine.signalsmithNode;
-    if (signalNode && this.engine.signalsmithAvailable && this.graph.gainANode) {
-      signalNode.connect(this.graph.gainANode);
-      this.graph.gainANode.connect(this.graph.requireOutput());
-      source.connect(signalNode);
-      connected = true;
-      console.log("[offscreen] Source → signalsmithNode → gainA → destination (Signalsmith)");
-    }
-    if (!connected) {
-      this.graph.requirePassthrough().connect(this.graph.requireOutput());
-      source.connect(this.graph.requirePassthrough());
-      console.log("[offscreen] Source → passthrough (fallback)");
-    } else {
-      console.log("[offscreen] Source → engines (active:", this.engine.effectiveEngine(), ")");
-    }
-    return connected;
-  }
-
-  private connectAccompaniment(source: MediaStreamAudioSourceNode, bypass: boolean): boolean {
-    const nodes = this.accompaniment.nodes;
-    if (!nodes) return false;
-    this.rewire();
-    if (bypass) {
-      this.graph.requirePassthrough().connect(this.graph.requireOutput());
-      source.connect(this.graph.requirePassthrough());
-      console.log("[offscreen] Source → passthrough (bypass)");
+    const engineNode = this.engine.signalsmithNode;
+    if (engineNode && this.engine.ready) {
+      engineNode.connect(this.graph.requireOutput());
+      source.connect(engineNode);
+      console.log("[offscreen] Source → signalsmithNode → destination");
       return true;
     }
+
+    // The engine is not up. Pass the audio through and let routeFor() report
+    // "passthrough" so the popup can say the audio is unprocessed (ADR-0007).
+    return this.connectPassthrough(source, "fallback");
+  }
+
+  private connectPassthrough(source: MediaStreamAudioSourceNode, reason: string): boolean {
+    this.graph.requirePassthrough().connect(this.graph.requireOutput());
+    source.connect(this.graph.requirePassthrough());
+    console.log("[offscreen] Source → passthrough (" + reason + ")");
+    return true;
+  }
+
+  private connectAccompaniment(source: MediaStreamAudioSourceNode): boolean {
+    const nodes = this.accompaniment.nodes;
+    if (!nodes) return false;
 
     source.connect(nodes.crossover);
     nodes.crossover.connect(nodes.lowband, 0);

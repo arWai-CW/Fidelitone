@@ -33,15 +33,16 @@ Fidelitone 是一個 Chrome 擴充套件：即時移調任何 Chrome 分頁正�
 
 ## Capabilities and Constraints
 
-- 即時移調 -12 至 +12 半音，保持原速；引擎含 Signalsmith Stretch 與 Rubber Band（WASM，本機處理）。
+- 即時移調 -12 至 +12 半音，保持原速；單一引擎 Signalsmith Stretch（WASM，本機處理，ADR-0007）。引擎起不來時圖退回直通路徑，介面以「信號路徑：未處理」誠實呈報。
 - 伴奏模式：175 Hz 分頻，低頻段時間域 resampling 跟隨移調、高頻段走 Stretch。
 - Bypass 純透傳路徑。
 - 頁面記憶（`page:<url>`，稀疏儲存）+ 自動跟隨（400ms 防抖）。
 - YouTube 頁面音量控制：全域基準音量、套用／淡出、500ms ramp。
+- **信號路徑是唯讀讀數，不是可選清單**：ADR-0007 移除雙引擎後，popup 的「信號路徑」列只回報音訊目前實際走的路（`Signalsmith` / `伴奏` / `旁路` / `未處理`），使用者不能選。存在的理由是誠實——引擎未啟動時必須看得到音訊其實沒被處理。
 - **同時只能擷取一個分頁**是 Chrome 的限制，屬產品事實：介面需誠實呈現（badge `ON` / `ON·` / `!`、分歧橫幅、改擷取按鈕），不隱藏、不假裝。
 - **零外部服務**：音訊全程本機處理，不上傳、不依賴外部 API 或帳號。
 - **介面語言為繁體中文**（`zh-Hant`）：popup 文案、CONTEXT.md 術語均為繁中；術語以 `CONTEXT.md` 為準（如「連線音訊」「頁面記憶」「輸出總閘」）。
-- 授權組合固定：Rubber Band Library 為 GPLv2+，Signalsmith Stretch 與專案程式碼為 MIT（見 `LICENSE`）——這是發布時的合規事實。
+- 授權組合固定：專案程式碼與 Signalsmith Stretch 皆為 MIT（見 `LICENSE`）——ADR-0007 移除 GPLv2+ 的 Rubber Band 後，整包為單一授權，這是發布時的合規事實。
 - 技術事實：Chrome MV3，三 context（service worker / offscreen document / popup）加兩支 content script；`npm run build` 產出 `dist/` 後以 unpacked 載入。
 
 ## Brand Commitments
@@ -54,10 +55,10 @@ Fidelitone 是一個 Chrome 擴充套件：即時移調任何 Chrome 分頁正�
 
 - `README.md`：功能清單、badge 語意、per-page memory 行為、Chrome 限制的完整說明。
 - `CONTEXT.md`：已確認的領域詞彙表（繁中術語與 Avoid 詞），是文案與設計的詞彙依據。
-- `docs/adr/`：六份已接受的架構決策（伴奏立體聲混音、架構深化、per-page memory、YouTube 音量、移除 loudness 分析）。
+- `docs/adr/`：七份已接受的架構決策（伴奏立體聲混音、架構深化、per-page memory、YouTube 音量、移除 loudness 分析、單一移調引擎）。
 - `src/popup/`：可運作的 popup 實作（`popup.html` / `popup.css` / `popup.ts`）——現行視覺系統的權威。
 - `icons/`、`assets/`：現有圖示與按鈕 icon 資產。
-- `src/tests/`：30+ 個 vitest 測試，覆蓋 DSP、routing、popup state、capture lifecycle。
+- `src/tests/`：121 個 vitest 測試（15 檔），覆蓋 DSP、routing、popup state、capture lifecycle。
 
 **不存在、不得捏造**：無使用者見證、無案例研究、無新聞報導、無 Chrome Web Store 上架素材（截圖、宣傳文案、評價）、無競品比較數據、無付費方案或定價。
 

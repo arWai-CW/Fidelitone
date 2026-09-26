@@ -1,4 +1,4 @@
-// popup controller - connection state, pitch controls, engine selection, and processing mode
+// popup controller - connection state, pitch controls, signal path, and processing mode
 // Capture lifecycle lives in the background service worker (ADR-0004): the popup
 // only requests a capture, edits settings for the captured page, and reports
 // where the audio is actually coming from.
@@ -9,13 +9,11 @@ import {
   connectionState,
   createPopupState,
   formatSemitones,
-  isEngine,
   isProcessingLocked,
   isSettingsLocked,
   PITCH_MAX,
   PITCH_MIN,
   roundPitch,
-  selectEngine,
   setBypass,
   setActiveTab,
   setCaptureIdentity,
@@ -23,7 +21,6 @@ import {
   setConnecting,
   showDivergenceBanner,
   type CaptureState,
-  type Engine,
   type PopupState,
 } from "./popup-state";
 import {
@@ -82,8 +79,8 @@ const pitchReset = getElement<HTMLButtonElement>("pitchReset");
 const snapCheckbox = getElement<HTMLInputElement>("snapCheckbox");
 const formantCheckbox = getElement<HTMLInputElement>("formantCheckbox");
 const accompanimentCheckbox = getElement<HTMLInputElement>("accompanimentCheckbox");
-const engineSignalsmith = getElement<HTMLButtonElement>("engineSignalsmith");
-const engineRubberband = getElement<HTMLButtonElement>("engineRubberband");
+const routeName = getElement<HTMLSpanElement>("routeName");
+const routeDesc = getElement<HTMLSpanElement>("routeDesc");
 const volumeCurrent = getElement<HTMLOutputElement>("volumeCurrent");
 const volumeBaseInput = getElement<HTMLInputElement>("volumeBaseInput");
 const volumeApplyBtn = getElement<HTMLButtonElement>("volumeApplyBtn");
@@ -164,11 +161,7 @@ function refreshControlAvailability() {
   accompanimentCheckbox.disabled = locked;
   bypassBtn.disabled = locked;
 
-  const accompanimentLocksRubberband = accompanimentCheckbox.checked;
-  engineSignalsmith.disabled = locked;
-  engineRubberband.disabled = locked || accompanimentLocksRubberband || !popupState.engineAvailability.rubberband;
-
-  renderEngineState();
+  renderRoute();
   updateBypassButtonState();
   renderYoutubePanel();
 }
@@ -480,7 +473,6 @@ function settingsFromLiveState(state: CaptureState): ResolvedPageSettings {
     bypass: state.bypass,
     preserveFormants: state.preserveFormants,
     accompanimentMode: state.accompanimentMode,
-    engine: isEngine(state.selectedEngine) ? state.selectedEngine : state.engine,
   });
 }
 
@@ -507,31 +499,26 @@ async function refreshCapturedTabTitle(): Promise<void> {
   renderDivergence();
 }
 
-function getRouteLabel(route: string | null): string {
-  if (!route) return "待命";
-  if (route === "bypass") return "旁路";
-  if (route === "accompaniment") return "伴奏";
-  if (route === "passthrough") return "直通";
-  if (route === "signalsmith") return "Signalsmith";
-  if (route === "rubberband") return "RubberBand";
-  return route;
-}
+/**
+ * ADR-0007: one engine, so this is a readout rather than a choice. It earns its
+ * place by reporting the fallback — if the engine never came up, the audio is
+ * passing through unprocessed and the user is told instead of guessing from a
+ * slider that appears to do nothing.
+ */
+const ROUTE_COPY: Record<string, { name: string; desc: string }> = {
+  standby: { name: "待命", desc: "尚未連線" },
+  signalsmith: { name: "Signalsmith", desc: "即時移調，節奏不變" },
+  accompaniment: { name: "伴奏", desc: "低頻重取樣 ＋ 高頻時域拉伸" },
+  bypass: { name: "旁路", desc: "擷取音訊未經處理直接輸出" },
+  passthrough: { name: "未處理", desc: "移調引擎未啟動，音訊直接通過" },
+};
 
-function renderEngineState() {
-  const accompanimentLocksRubberband = accompanimentCheckbox.checked;
-  const engines: Array<[HTMLButtonElement, Engine]> = [
-    [engineSignalsmith, "signalsmith"],
-    [engineRubberband, "rubberband"],
-  ];
-
-  for (const [button, engine] of engines) {
-    const selected = engine === popupState.selectedEngine;
-    const available = popupState.engineAvailability[engine];
-    const fixedForAccompaniment = accompanimentLocksRubberband && engine === "rubberband";
-    button.classList.toggle("is-selected", selected);
-    button.setAttribute("aria-checked", String(selected));
-    button.disabled = isProcessingLocked(popupState) || fixedForAccompaniment || (engine === "rubberband" && !available);
-  }
+function renderRoute() {
+  const key = popupState.route ?? "standby";
+  const copy = ROUTE_COPY[key] ?? ROUTE_COPY.standby;
+  body.dataset.route = key;
+  routeName.textContent = copy.name;
+  routeDesc.textContent = copy.desc;
 }
 
 function updateBypassButtonState() {
@@ -559,9 +546,7 @@ function applyPageSettings(settings: ResolvedPageSettings) {
   popupState = setBypass(popupState, settings.bypass);
   formantCheckbox.checked = settings.preserveFormants;
   accompanimentCheckbox.checked = settings.accompanimentMode;
-  popupState = selectEngine(popupState, settings.engine);
 
-  renderEngineState();
   updateBypassButtonState();
   refreshControlAvailability();
 }
@@ -575,7 +560,7 @@ function applyLiveState(state: CaptureState) {
   formantCheckbox.checked = state.preserveFormants === true;
   accompanimentCheckbox.checked = state.accompanimentMode === true;
 
-  renderEngineState();
+  renderRoute();
   updateBypassButtonState();
   renderConnectionState();
   void refreshCapturedTabTitle();
@@ -629,7 +614,7 @@ async function refreshRouteState(): Promise<void> {
   const state = await getCaptureState();
   if (!state) return;
   popupState = applyCaptureState(popupState, state);
-  renderEngineState();
+  renderRoute();
 }
 
 /**
@@ -940,13 +925,11 @@ accompanimentCheckbox.addEventListener("change", async () => {
     return;
   }
 
-  renderEngineState();
   refreshControlAvailability();
 
   if (!(await sendSafe({ type: "SET_ACCOMPANIMENT", value: { enabled } }, true, ACCOMPANIMENT_COMMAND_TIMEOUT_MS))) {
     accompanimentCheckbox.checked = !enabled;
     await rollbackPageSetting({ accompanimentMode: !enabled });
-    renderEngineState();
     refreshControlAvailability();
   } else {
     await refreshRouteState();
@@ -1013,33 +996,6 @@ pitchReset.addEventListener("click", () => {
   if (isProcessingLocked(popupState)) return;
   void updatePitch(0, true).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
 });
-
-async function selectEngineFromUi(engine: Engine): Promise<void> {
-  if (isProcessingLocked(popupState)) return;
-  const previousEngine = popupState.selectedEngine;
-  popupState = selectEngine(popupState, engine);
-  renderEngineState();
-  refreshControlAvailability();
-
-  if (!(await commitPageSetting({ engine }))) {
-    popupState = selectEngine(popupState, previousEngine);
-    renderEngineState();
-    refreshControlAvailability();
-    return;
-  }
-
-  if (!(await sendSafe({ type: "SET_ENGINE", engine }))) {
-    popupState = selectEngine(popupState, previousEngine);
-    renderEngineState();
-    refreshControlAvailability();
-    await rollbackPageSetting({ engine: previousEngine });
-  } else {
-    await refreshRouteState();
-  }
-}
-
-engineSignalsmith.addEventListener("click", () => void selectEngineFromUi("signalsmith"));
-engineRubberband.addEventListener("click", () => void selectEngineFromUi("rubberband"));
 
 volumeBaseInput.addEventListener("change", () => {
   const value = readBaseVolumeInput();

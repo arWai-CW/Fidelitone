@@ -17,7 +17,6 @@ function state(overrides: Partial<CaptureState> = {}): CaptureState {
     bypass: false,
     preserveFormants: false,
     accompanimentMode: false,
-    engine: "signalsmith",
     tabId: 5,
     page: "https://www.youtube.com",
     ...overrides,

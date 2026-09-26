@@ -1,4 +1,4 @@
-import type { CaptureState, Engine, SwitchCaptureRequest } from "./offscreen-state";
+import type { CaptureState, SwitchCaptureRequest } from "./offscreen-state";
 import { resolvePageSettings } from "../lib/page-settings";
 
 export interface OffscreenController {
@@ -6,7 +6,6 @@ export interface OffscreenController {
   setBypass(value: { active: boolean }): Promise<boolean>;
   setFormants(value: { preserve: boolean }): Promise<boolean>;
   setAccompaniment(value: { enabled: boolean }): Promise<boolean>;
-  setEngine(engine: Engine): Promise<boolean>;
   switchCapture(request: SwitchCaptureRequest): Promise<void>;
   stopCapture(): Promise<void>;
   getState(): { ready: boolean; state: CaptureState };
@@ -57,8 +56,6 @@ export async function handleOffscreenMessage(
         return { ok: await controller.setBypass(msg.value as { active: boolean }) };
       case "SET_FORMANTS":
         return { ok: await controller.setFormants(msg.value as { preserve: boolean }) };
-      case "SET_ENGINE":
-        return { ok: await controller.setEngine(msg.engine as Engine) };
       case "SET_ACCOMPANIMENT":
         return { ok: await controller.setAccompaniment(msg.value as { enabled: boolean }) };
       case "SWITCH_CAPTURE": {
@@ -87,7 +84,6 @@ export const MESSAGE_TYPES = new Set([
   "SET_PITCH",
   "SET_BYPASS",
   "SET_FORMANTS",
-  "SET_ENGINE",
   "SET_ACCOMPANIMENT",
   "SWITCH_CAPTURE",
   "STOP_CAPTURE",

@@ -1,5 +1,9 @@
 # Runtime verification notes
 
+> Each dated section below is a snapshot taken when that ADR was implemented.
+> Later ADRs supersede parts of them; the current automated-check state is the
+> most recent section at the bottom of this file.
+
 Date: 2026-09-17
 
 ## Automated checks
@@ -134,4 +138,37 @@ Date: 2026-09-26
 - [ ] **百分比偏離**：基準 100、套用 80 → 提示「目前音量比基準低 20%」；套用回 100 → 「目前音量與基準一致」；基準 50、套用 60 → 「目前音量比基準高 20%」。
 - [ ] **面板離線可用且置頂**：`YouTube 音量` 面板在 header 下方、連線列之前（`reveal-delay-1`）；未連線狀態下套用／淡出直接生效（無「按連線後即可分析」之類提示）。
 - [ ] **分析不復存在**：面板無「響度分析」區塊與「分析音量水平」按鈕；popup 程式碼不發送 `MEASURE_LOUDNESS`（offscreen 收到也回 error）。
-- [ ] **連線功能未受影響**：移除 source 分支 tap 後，連線、切 bypass／伴奏／引擎、自動跟隨音訊皆正常（無多餘接線）。
+- [ ] **連線功能未受影響**：移除 source 分支 tap 後，連線、切 bypass／伴奏／引擎、自動跟隨音訊皆正常（無多餘接線）。（「引擎」切換已由 ADR-0007 移除。）
+
+---
+
+# ADR-0007 — 單一移調引擎（移除 RubberBand）
+
+Date: 2026-09-27
+
+## Automated checks
+
+- `npm run typecheck` — passed.
+- `npm test` — **15 test files and 121 tests passed**（139 → 121：刪除 `rubberband-live-shifter.test.ts`、`rb-worker.test.ts`、`engine-switching.test.ts`、`audio-routing.test.ts`、`opus-encoder.test.ts`、`wav-writer.test.ts` 六檔；`graph-router.test.ts` 改寫，`offscreen-state.test.ts`／`popup-state.test.ts`／`page-settings.test.ts`／`offscreen-messages.test.ts`／`capture-session.test.ts`／`accompaniment.test.ts` 隨介面收斂調整；新增引擎缺席時的 passthrough fallback 與 `routeFor` 回報 `passthrough` 的驗證）。
+- `npm run build` — passed。`dist/` 由 876 KB 降至 **392 KB**（`src/wasm/rubberband.wasm` 468 KB 移除）。
+- `dist/processors/` 僅剩 `crossover-processor.js`、`lowband-resampler.js`、`passthrough-processor.js`、`signalsmith-stretch.js`。
+- 殘留掃描：`grep -ri "rubberband" src/ dist/ manifest.json package.json` **無結果**；`docs/` 僅 ADR-0003 與 ADR-0007 的歷史記錄提及。
+- 授權：`LICENSE` 為 MIT 全文，第三方元件僅 Signalsmith Stretch（MIT）；`README.md` 的 GPL 段落已移除。
+- 死碼移除（無任何 production importer，ADR-0006 同一原則）：`src/lib/opus-encoder.ts`、`src/lib/wav-writer.ts`、`src/worker/rb-worker.ts`。
+- `manifest.json` 的 CSP 仍需 `'wasm-unsafe-eval'`——Signalsmith Stretch 自帶 WASM。
+- `git diff --check` — passed.
+- 新增 CI：`.github/workflows/ci.yml` 跑 typecheck / test / build，並斷言兩支 content script 仍是 classic script（無 `import`／`export`）且 `dist/` 產物齊全。
+
+## Chrome runtime checks — pending
+
+Load `dist` as an unpacked extension and walk the list below. Record the results here.
+
+- [ ] **信號路徑讀數**：連線 YouTube 音訊 → 「信號路徑」顯示 `Signalsmith`／「即時移調，節奏不變」；拖動打孔軌到 +3 st，音高改變而節奏不變，讀數即時更新。
+- [ ] **伴奏模式**：開啟後「信號路徑」轉為 `伴奏`；低頻（bass／kick）確實跟著移調，無爆音、無低頻缺口。這條路徑從未 involve RubberBand，行為應與移除前一致。
+- [ ] **旁路**：開啟後顯示 `旁路`；bypass 按鈕呈 grease 叉；音訊為原始未處理輸出。
+- [ ] **共振峰保護**：開啟後人聲音色不隨移調改變（Signalsmith 的 `formantCompensation`，非移除前的 RubberBand 路徑）。
+- [ ] **未連線**：顯示 `待命`／「尚未連線」。
+- [ ] **引擎未啟動的誠實呈現**：若可製造引擎初始化失敗（例如阻擋 `processors/signalsmith-stretch.js`），應顯示 `未處理`／「移調引擎未啟動，音訊直接通過」且記號為橘色 grease 叉，而不是假裝在處理。
+- [ ] **handover 交接**：切換分頁後輸出總閘淡出淡入無爆音，且新分頁的頁面記憶正確套用。
+- [ ] **舊記錄相容**：從移除前的版本升級，既有 `page:<url>` 記錄裡殘留的 `engine` 欄位不造成錯誤，且任一設定變更後該欄位消失。
+- [ ] **延遲量測**：量一次 Signalsmith 的實際輸出延遲（`node.latency()`），記錄在 README——這是移除雙引擎後唯一還缺的公開數據。

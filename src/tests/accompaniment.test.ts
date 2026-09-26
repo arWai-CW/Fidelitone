@@ -5,7 +5,7 @@ vi.mock("../lib/dsp/worklet-message", () => ({
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { AccompanimentGraph } from "../offscreen/accompaniment";
 import type { AudioGraph } from "../offscreen/audio-graph";
-import type { EngineSwitching } from "../offscreen/engine-switching";
+import type { PitchEngine } from "../offscreen/pitch-engine";
 
 beforeEach(() => {
   globalThis.chrome = {
@@ -42,38 +42,29 @@ function fakeGraph(): AudioGraph {
     }),
     ensureReady: vi.fn().mockResolvedValue(undefined),
     disconnectNode: vi.fn(),
-    rubberbandReadyStatus: true,
-    rubberbandNode: { disconnect: vi.fn() },
     passthroughNode: { disconnect: vi.fn() },
-    gainANode: { disconnect: vi.fn() },
-    gainBNode: { disconnect: vi.fn() },
   } as unknown as AudioGraph;
 }
 
-function fakeEngine(overrides: Partial<EngineSwitching> = {}): EngineSwitching {
-  // Getters proxy a mutable cell: the real EngineSwitching exposes these as
+function fakeEngine(overrides: Partial<PitchEngine> = {}): PitchEngine {
+  // Getters proxy a mutable cell: the real PitchEngine exposes these as
   // read-only properties, so the mock has to model the same shape.
-  const internal: { signalsmithNode: AudioWorkletNode | null; signalsmithAvailable: boolean } = {
-    signalsmithNode: null,
-    signalsmithAvailable: false,
-  };
-  const engine = {
-    get signalsmithAvailable(): boolean {
-      return internal.signalsmithAvailable;
+  const internal: { node: AudioWorkletNode | null } = { node: null };
+  return {
+    get ready(): boolean {
+      return internal.node !== null;
     },
     get signalsmithNode(): AudioWorkletNode | null {
-      return internal.signalsmithNode;
+      return internal.node;
     },
-    initSignalsmith: vi.fn(async () => {
-      internal.signalsmithNode = {} as AudioWorkletNode;
-      internal.signalsmithAvailable = true;
+    ensureReady: vi.fn(async () => {
+      internal.node = {} as AudioWorkletNode;
       return true;
     }),
     dryPitch: vi.fn(),
     reset: vi.fn(),
     ...overrides,
-  } as unknown as EngineSwitching;
-  return engine;
+  } as unknown as PitchEngine;
 }
 
 describe("AccompanimentGraph", () => {
@@ -91,7 +82,7 @@ describe("AccompanimentGraph", () => {
   });
 
   it("init returns false and resets when the engine is unavailable", async () => {
-    const engine = fakeEngine({ initSignalsmith: vi.fn().mockResolvedValue(false) });
+    const engine = fakeEngine({ ensureReady: vi.fn().mockResolvedValue(false) });
     const accomp = new AccompanimentGraph(fakeGraph(), engine);
     const ok = await accomp.init(0, false);
     expect(ok).toBe(false);
@@ -104,7 +95,7 @@ describe("AccompanimentGraph", () => {
     await accomp.init(0, false);
     const ok = await accomp.ensureEnabled(0, false);
     expect(ok).toBe(true);
-    expect(engine.initSignalsmith).toHaveBeenCalledTimes(1);
+    expect(engine.ensureReady).toHaveBeenCalledTimes(1);
   });
 
   it("resetWorklets disconnects only the worklet nodes and clears ready", () => {

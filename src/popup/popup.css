@@ -913,106 +913,109 @@ body[data-connection-state="lost"] .tape-btn::after {
 	color: var(--text-3);
 }
 
-.engine-list {
+/* 信號路徑（ADR-0007）：單一引擎後這是一行讀數，不是可選的清單。
+   存在的理由是誠實——引擎起不來時使用者看得到音訊其實沒被處理。 */
+.route-line {
 	display: flex;
-	flex-direction: column;
-	gap: 8px;
-}
-
-.engine-item {
-	position: relative;
-	width: 100%;
-	text-align: left;
-	padding: 11px 36px 11px 13px;
+	align-items: baseline;
+	gap: 9px;
+	margin: 0;
+	padding: 11px 13px;
 	background: var(--ink);
-	color: var(--edge);
 	border: 1px solid var(--spool);
 	border-radius: 3px;
-	cursor: pointer;
-	transition: border-color 140ms var(--snap-ease), background 140ms var(--snap-ease);
 }
 
-.engine-item::after {
-	content: "";
-	position: absolute;
-	top: 50%;
-	right: 11px;
-	transform: translateY(-50%);
-	width: 4px;
-	height: 17px;
-	background-image: radial-gradient(
-		circle 1.7px at 50% 3px,
-		var(--spool) 98%,
-		transparent 100%
-	);
-	background-size: 100% 8px;
-	background-repeat: repeat-y;
+/* 記號而非色相（The Mark Rule）：實心＝引擎在跑，grease 叉＝直通未處理。 */
+.route-mark {
+	flex: none;
+	width: 9px;
+	height: 9px;
+	border: 1.4px solid var(--text-3);
+	border-radius: 1px;
+	transform: translateY(1px);
 }
 
-.engine-item:hover:not(:disabled) {
+body[data-route="signalsmith"] .route-mark,
+body[data-route="accompaniment"] .route-mark {
+	background: var(--orange);
 	border-color: var(--orange);
 }
 
-.engine-info {
-	display: flex;
-	flex-direction: column;
-	gap: 3px;
+body[data-route="passthrough"] .route-mark {
+	position: relative;
 }
 
-.engine-name {
+/* grease 叉：引擎沒起來，音訊走的是未處理的直通路徑。 */
+body[data-route="passthrough"] .route-mark::before,
+body[data-route="passthrough"] .route-mark::after {
+	content: "";
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 13px;
+	height: 2.6px;
+	background: var(--orange);
+}
+
+body[data-route="passthrough"] .route-mark::before {
+	transform: translate(-50%, -50%) rotate(-7deg);
+}
+
+body[data-route="passthrough"] .route-mark::after {
+	transform: translate(-50%, -50%) rotate(-7deg);
+}
+
+body[data-route="bypass"] .route-mark {
+	border-color: var(--text-2);
+}
+
+/* grease 叉：引擎沒起來，音訊走的是未處理的直通路徑。同一個記號語彙，
+   與旁路按鈕的叉一致——但這裡是橘色且無外框，代表故障而非使用者的選擇。 */
+body[data-route="passthrough"] .route-mark {
+	width: 11px;
+	height: 11px;
+	border: 0;
+	border-radius: 0;
+	transform: translateY(1px);
+}
+
+body[data-route="passthrough"] .route-mark::before,
+body[data-route="passthrough"] .route-mark::after {
+	content: "";
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 14px;
+	height: 2.6px;
+	background: var(--orange);
+}
+
+body[data-route="passthrough"] .route-mark::before {
+	transform: translate(-50%, -50%) rotate(-7deg);
+}
+
+body[data-route="passthrough"] .route-mark::after {
+	transform: translate(-50%, -50%) rotate(83deg);
+}
+
+.route-name {
 	font-size: 15px;
 	font-weight: 700;
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
 }
 
-.engine-desc {
+.route-desc {
 	font-size: 12.5px;
 	font-weight: 400;
 	color: var(--text-2);
 	line-height: 1.5;
 }
 
-.engine-item.is-selected {
-	background: var(--edge);
-	border-color: var(--edge);
-	color: var(--on-orange);
-}
-
-.engine-item.is-selected .engine-desc {
-	color: var(--on-orange-2);
-}
-
-.engine-item.is-selected::after {
-	background-image: radial-gradient(
-		circle 1.7px at 50% 3px,
-		var(--on-orange) 98%,
-		transparent 100%
-	);
-}
-
-.engine-item:disabled {
-	/* 鎖定不吃整體 opacity：底色會逼近 live 反白。改以底色微降＋打孔角表達。 */
-	background: var(--charred);
-	border-color: var(--charred);
-	cursor: default;
-}
-
-.engine-item:disabled.is-selected {
-	background: var(--edge);
-	border-color: var(--edge);
-}
-
-/* 鎖定的反白卡：角上打孔，讓「反白＝selected/live」不被鎖定態冒用。 */
-.engine-item:disabled.is-selected::before {
-	content: "";
-	position: absolute;
-	top: -1px;
-	right: -1px;
-	width: 14px;
-	height: 14px;
-	background: var(--panel);
-	clip-path: polygon(0 0, 100% 0, 100% 100%);
+body[data-route="passthrough"] .route-name,
+body[data-route="passthrough"] .route-desc {
+	color: var(--orange);
 }
 
 /* ------------------------------------------------------- YouTube 音量 */

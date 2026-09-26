@@ -1,9 +1,5 @@
-export type Engine = "rubberband" | "signalsmith";
-
-export interface EngineAvailability {
-  signalsmith: boolean;
-  rubberband: boolean;
-}
+/** The path a captured stream is currently travelling through (ADR-0007). */
+export type SignalRoute = "bypass" | "accompaniment" | "signalsmith" | "passthrough";
 
 /** Fully resolved processing settings; the unit a page remembers and applies. */
 export interface ProcessingSettings {
@@ -11,7 +7,6 @@ export interface ProcessingSettings {
   bypass: boolean;
   preserveFormants: boolean;
   accompanimentMode: boolean;
-  engine: Engine;
 }
 
 export interface CaptureState {
@@ -21,13 +16,9 @@ export interface CaptureState {
   bypass: boolean;
   preserveFormants: boolean;
   accompanimentMode: boolean;
-  engine?: Engine;
-  selectedEngine?: Engine;
-  route?: string;
+  route?: SignalRoute;
   captureLost?: boolean;
-  engineAvailability?: EngineAvailability;
-  /** Identity of the tab currently being captured (null when idle/lost). */
+  /** Identity of the tab being captured (null when idle/lost). */
   tabId?: number | null;
-  /** Page URL of the capture (see pageKey); the key its settings live under. */
   page?: string | null;
 }

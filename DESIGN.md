@@ -98,16 +98,11 @@ components:
     rounded: "{rounded.sm}"
     width: "78px"
     height: "44px"
-  card-engine:
+  readout-route:
     backgroundColor: "{colors.ground-ink}"
     textColor: "{colors.punched-white}"
     rounded: "{rounded.sm}"
-    padding: "11px 36px 11px 13px"
-  card-engine-selected:
-    backgroundColor: "{colors.punched-white}"
-    textColor: "{colors.ground-ink}"
-    rounded: "{rounded.sm}"
-    padding: "11px 36px 11px 13px"
+    padding: "11px 13px"
   banner-punched:
     backgroundColor: "{colors.punched-white}"
     textColor: "{colors.ground-ink}"
@@ -149,9 +144,9 @@ Fidelitone 的 popup 是一台口袋大小的電影剪接台：true black（#0a0
 
 ### Neutral
 
-- **Bench Ink** (#0a0a0a): 台面底（html/body）、切格 cut-cell、輸入框底、開關底、引擎卡底；同時是白窗與橘底上的文字色（on-orange 同值）。
+- **Bench Ink** (#0a0a0a): 台面底（html/body）、切格 cut-cell、輸入框底、開關底、信號路徑讀數底；同時是白窗與橘底上的文字色（on-orange 同值）。
 - **Panel** (#121212): 條帶（strip）與軌的底色，比台面高一階。
-- **Charred** (#1a1a1a): 膠片條的靜止底色、鎖定引擎卡的底色——比 panel 暗、比 ink 亮。
+- **Charred** (#1a1a1a): 膠片條的靜止底色、停用狀態的底色——比 panel 暗、比 ink 亮。
 - **Spool** (#2e2e2e): 1px 邊框、髮絲分隔線（hairline 同值）、停用底色、次要刻度線、捲動條 thumb。
 - **Punched White** (#f2f2f2): 打孔白窗的窗底，也是主要文字色（--text 同值）——同一個白既是字也是窗；用在錯誤橫幅、tooltip、選取卡、連線中的主按鈕反白。
 - **Paper White** (#ffffff): 反白主按鈕的 hover。
@@ -181,8 +176,8 @@ Fidelitone 的 popup 是一台口袋大小的電影剪接台：true black（#0a0
 - **Field Number** (700, 25px, tabular-nums): 基準音量輸入框裡的數字——Display 之下、Headline 之上的專用級；右接的 `%` 為 17px/600（text-3）。
 - **Headline** (600, 15.5px, letter-spacing 0.03em): 連線列主文案（「等待開始」），punched-white。
 - **Title** (700, 13px, letter-spacing 0.14em): section 標題（h2：音高、信號路徑、進階選項…），一律 grain orange。
-- **Body** (400, 14px, line-height 1.45): popup 預設文字；說明行降一級到 12.5px（option-helper、engine-desc、panel-note、記憶文案 12.5px/500/0.04em）。
-- **Label** (600, 11.5px, letter-spacing 0.2em): 組標籤（處理引擎、基準音量）；刻度標籤 11px/600/0.04em（tabular-nums）；wordmark 17px/700/0.16em 全大寫。
+- **Body** (400, 14px, line-height 1.45): popup 預設文字；說明行降一級到 12.5px（option-helper、route-desc、panel-note、記憶文案 12.5px/500/0.04em）。
+- **Label** (600, 11.5px, letter-spacing 0.2em): 組標籤（基準音量）；刻度標籤 11px/600/0.04em（tabular-nums）；wordmark 17px/700/0.16em 全大寫。
 
 ### Named Rules
 
@@ -225,7 +220,7 @@ popup 固定 400px 寬（形式約束，非可變項）：沒有 breakpoint，�
 幾何母題是「打孔」：
 
 - **Punched corner**: 16px／14px 的 clip-path 三角，蓋在被鎖定的區塊與卡的右上角＝locked。
-- **Punched dots**: 半徑 1.7px 的實心硬邊圓點（radial-gradient），沿膠帶條左右 6px 內側成列、沿引擎卡右緣成列＝撕齒邊；停用時換成 text-3，遺失時換成 orange。
+- **Punched dots**: 半徑 1.7px 的實心硬邊圓點（radial-gradient），沿膠帶條左右 6px 內側成列＝撕齒邊；停用時換成 text-3，遺失時換成 orange。
 - **Perforation**: 膠片條上下緣 7px 高的長孔（repeating-linear-gradient，9px 實／9px 空），與半音刻度雙層線（major 每 4 格 15px 高、minor 每格 8px 高）同源。
 - **Folded pennant**: 折角旗 `clip-path: polygon(0 0, 100% 0, 100% 68%, 50% 100%, 0 68%)`，104deg 兩段漸層（64% 處轉暗）做折面；頁面記憶的 pennant 記號同形（12×14）。
 - **Dashed**: 虛線＝pending——待套用的記憶記號（stroke-dasharray 2.6 2）、連線中的方框（3 2.5）、進階選項列 1px dashed 分隔。
@@ -259,13 +254,11 @@ popup 固定 400px 寬（形式約束，非可變項）：沒有 breakpoint，�
 
 38×21、radius 3px、ink 底＋1px spool 邊；鈕 14×15、text-2。Checked：底與邊轉 orange、鈕轉 ground-ink 並 translateX(17px)（160ms snap-ease）。Focus-visible（藏起來的 checkbox）：鈕外 2px orange outline＋offset 2px。Disabled：switch opacity 0.5、cursor 箭頭。整列 label 可點，列 padding 11px 0、gap 11px。
 
-### Cards / Containers（strip 與引擎卡）
+### Containers（strip 與信號路徑讀數）
 
 - **Strip（條帶）**: radius 0（全寬矩形）、panel 底、padding 16px、底 1px hairline；無陰影。區塊標題 h2（title 規格、orange）。
-- **Engine Card（信號路徑）**: ink 底、1px spool、radius 3px、padding 11px 36px 11px 13px、右緣一列 punched dots；name 15px/700/0.06em 全大寫，desc 12.5px text-2。Hover 邊轉 orange。
-  - **Selected（is-selected）**: 整卡反白——punched-white 底、ink 字、desc 轉 on-orange-muted、punch dots 轉 ink。反白＝selected／live。
-  - **Disabled**: 底與邊轉 charred、cursor default——**不吃整體 opacity**，以免底色逼近反白、搶走「反白＝live」的語意。
-  - **Disabled + Selected**: 仍反白，但右上角打一個 14px punched corner（panel 底三角），讓「鎖定」不被反白冒充、對比也完整保留。
+- **Route Line（信號路徑）**: 單一引擎後這是**唯讀讀數**，不是可選的卡（ADR-0007）。ink 底、1px spool、radius 3px、padding 11px 13px，內含 9px 記號（The Mark Rule 的實心／叉）、name 15px/700/0.06em 全大寫、desc 12.5px text-2。不可 hover、不可點、無選取態——它是台面上的量測讀數，不是零件。
+  - **passthrough（引擎未啟動）**: 記號轉為 grease 叉（2.6px 線寬、-7deg 旋轉，與 bypass 按鈕同一記號語彙），name 與 desc 同時轉 orange。這是唯一需要 attention 的狀態，所以是橘色唯一合理的另一個用途。
 
 ### Inputs / Fields
 
@@ -296,7 +289,7 @@ popup 固定 400px 寬（形式約束，非可變項）：沒有 breakpoint，�
 ### Do:
 
 - **Do** 用記號＋繁中文案雙重表達狀態：實心＝live、虛線＝pending、grease 叉＝cut／invalid、打孔角＝locked、反白＝selected／live（**The Mark Rule**）。
-- **Do** 只用 grain orange #ff5a1f 一種彩色，並讓它維持稀缺（**The Single-Ink Rule**）；hover 深化到 #d94712，pressed 用 translateY(1px)。
+- **Do** 只用 grain orange #ff5a1f 一種彩色，並讓它維持稀缺（**The Single-Ink Rule**）；hover 深化到 #d94712，pressed 用 translateY(1px)。信號路徑的 passthrough 狀態是刻意的例外——那是要使用者注意的故障。
 - **Do** 把緊急／生效中的內容放進打孔白窗（#f2f2f2 底＋#0a0a0a 字）（**The Punched-Window Rule**）。
 - **Do** 讓 text-2（#a8a8a8）／text-3（#8d8d8d）在 ink／panel 底上保持 ≥4.5:1；色底上的次級文字用該色的 ink 濃淡調，不用灰（**The Contrast Floor**）。
 - **Do** 所有會跳動的數字用 tabular-nums（**The Tabular Rule**）；拉丁標籤全大寫＋字距 ≥0.04em（**The Caps-and-Tracking Rule**）。
@@ -308,7 +301,7 @@ popup 固定 400px 寬（形式約束，非可變項）：沒有 breakpoint，�
 ### Don't:
 
 - **Don't** 用色相表達狀態或分類內容——不新增第二種彩色、不做霓虹點綴、不做狀態色燈。
-- **Don't** 對鎖定／停用的卡施加整體 opacity：底色會逼近反白、對比會掉，且「反白＝live」的語意被偷走；改用 charred 底＋打孔角（見 engine card disabled）。
+- **Don't** 對鎖定／停用的區塊施加整體 opacity：底色會逼近反白、對比會掉，且「反白＝live」的語意被偷走；改用 charred 底＋打孔角。
 - **Don't** 做裝飾性深度：零偏移色暈、硬偏移方塊陰影、玻璃模糊都不屬於這個台面；陰影只給有實體的零件。
 - **Don't** 把字級當層級——同一條 strip 內用字重、字距與位置分層（**The Caps-and-Tracking Rule**）；不用負字距。
 - **Don't** 拿波形、等化器、滑桿堆疊或任何通用「音訊擴充功能」預設件當裝飾；本世界的量測件是刻度與打孔。

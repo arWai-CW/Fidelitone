@@ -104,7 +104,7 @@ describe("worklet message handshake", () => {
       nodeWith(port),
       { type: "RESET" },
       "RESET_OK",
-      { label: "rubberband", timeoutMs: 20 },
+      { label: "passthrough", timeoutMs: 20 },
     );
 
     expect(port.messages).toEqual([{ type: "RESET" }]);

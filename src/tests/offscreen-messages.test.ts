@@ -16,11 +16,8 @@ function createState(): CaptureState {
     bypass: false,
     preserveFormants: false,
     accompanimentMode: false,
-    engine: "rubberband",
-    selectedEngine: "rubberband",
-    route: "rubberband",
+    route: "signalsmith",
     captureLost: false,
-    engineAvailability: { signalsmith: false, rubberband: true },
     tabId: null,
     page: null,
   };
@@ -40,7 +37,6 @@ function controller(): OffscreenController {
     },
     setFormants: async () => true,
     setAccompaniment: async () => true,
-    setEngine: async () => true,
     switchCapture: vi.fn(async (request) => {
       state.connected = request.streamId !== null;
       state.tabId = request.tabId;
@@ -50,7 +46,6 @@ function controller(): OffscreenController {
         state.bypass = request.settings.bypass;
         state.preserveFormants = request.settings.preserveFormants;
         state.accompanimentMode = request.settings.accompanimentMode;
-        state.selectedEngine = request.settings.engine;
       }
     }),
     stopCapture: async () => {
@@ -106,7 +101,6 @@ describe("offscreen message module", () => {
           bypass: false,
           preserveFormants: true,
           accompanimentMode: false,
-          engine: "rubberband",
         },
       },
       api,
@@ -129,7 +123,6 @@ describe("offscreen message module", () => {
         bypass: false,
         preserveFormants: true,
         accompanimentMode: false,
-        engine: "rubberband",
       },
     });
   });
