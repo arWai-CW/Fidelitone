@@ -55,22 +55,26 @@ crossover and the output limiter are textbook Butterworth and
 `DynamicsCompressor` nodes. **The reason it does not fall apart at large
 transpositions is Signalsmith's doing, not this project's.**
 
-**Written here.**
+**The one piece of real signal processing here** is
+`src/processors/lowband-resampler.js` — a bounded, phase-locked WSOLA/PSOLA
+resampler for the low band. It estimates low-band periods, takes
+period-synchronous timeline corrections instead of wrapping into stale
+ring-buffer samples, and keeps read latency bounded at rates both below and
+above 1.0. It exists because the low band does not go through the STFT phase
+vocoder at all: a 60 Hz bass note has too few periods to survive one.
 
-- **`src/processors/lowband-resampler.js`** — a bounded, phase-locked
-  WSOLA/PSOLA resampler for the low band. It estimates low-band periods, takes
-  period-synchronous timeline corrections instead of wrapping into stale
-  ring-buffer samples, and keeps read latency bounded at rates both below and
-  above 1.0. It exists because the low band does not go through the STFT phase
-  vocoder at all: a 60 Hz bass note has too few periods to survive one.
+![Accompaniment mode enabled](docs/images/popup-accompaniment.png)
 
-    ![Accompaniment mode enabled](docs/images/popup-accompaniment.png)
+**The rest is plumbing, done carefully** rather than anything exotic — an atomic
+handover between tabs, a master output gate that fades around it, per-URL memory
+keyed by URL rather than origin, a MAIN-world content script because YouTube's
+player API is page-owned JavaScript. Not a highlights list; that is simply what
+it takes for the thing to work end to end.
 
-- **The graph and state around it** — one atomic handover between tabs, a master
-  output gate that fades around it, per-URL memory with sparse storage, and a
-  reconciliation state machine for "the audio is over there, not here".
-- **A MAIN-world content script**, because YouTube's player API is page-owned
-  JavaScript that an isolated-world content script cannot reach.
+**One finding worth reading.** The accompaniment graph's 90 ms alignment delay is
+derived from the engine's 100 ms latency, and the two constants live in different
+files with nothing enforcing the relationship. Nobody would have found that if
+the latency had not been measured. [ADR-0007](docs/adr/0007-single-pitch-engine.md)
 
 
 ## Honest limits
