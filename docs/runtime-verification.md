@@ -59,11 +59,13 @@ Date: 2026-09-26
 - Baseline regression check: the 81 test titles present at `e394944` were compared title-by-title against the current run — **none missing**.
 - New coverage: `page-settings.test.ts` (page-URL keying incl. query kept / fragment dropped, separate records for two videos on one site, legacy `site:` key detection, sparse storage, `planTabActivation`, divergence, `deriveBadge`), `output-gate.test.ts` (ramp scheduling / early dispose), `capture-session.test.ts` (service-worker mirror reducer → badge), plus serialization and atomic-handover cases in `offscreen-messages.test.ts`.
 
-## Chrome runtime checks — pending
+## Chrome runtime checks — partially covered by ADR-0007
 
 Load `dist` as an unpacked extension and walk the ADR-0004 acceptance list. Record the measured numbers here.
 
-- [ ] **Per-page memory round trip**: page A → +3 st / RubberBand → switch to page B → clean defaults (0 st, Signalsmith) → switch back to A → +3 st restored. Confirm exactly one capture stream existed throughout (`chrome://media-internals` or `chrome://webrtc-internals`).
+> The per-page memory, handover, divergence and badge items below were re-verified on 2026-09-27 as part of ADR-0007 — see that section's table. What remains unmeasured here is the **handover timing table**: the millisecond numbers, and whether original-audio leak stays within the 400 ms target. ADR-0007 confirmed the handover is *correct*, not that it is *fast enough*.
+
+- [ ] **Per-page memory round trip**: page A → +3 st → switch to page B → clean defaults (0 st) → switch back to A → +3 st restored. Confirm exactly one capture stream existed throughout (`chrome://media-internals` or `chrome://webrtc-internals`). (The engine toggle that used to be part of this record was removed by ADR-0007; `page-settings.test.ts` now covers the drop of a stale `engine` field.)
 - [ ] **Two videos on one site stay independent** (the rewrite that motivated the page-URL change): YouTube video A at +3 st → switch to video B (`?v=` differs) → B comes back at 0 st → back to A → +3 st. Also confirm a `#fragment` jump inside video A still reads A's record.
 - [ ] **Handover window**: measure the gap between the outgoing tab being released and the incoming tab's audio reaching full level. Target: original-audio leak ≤ 400 ms. Also confirm no audible "old tab playing with the new page's settings" and no double-audio during the fade. Record the ms value in the table below.
 - [ ] **Unauthorized tab**: with a capture running on page A, switch to a tab that never had the popup opened → capture must not be interrupted, badge must turn `ON·`, popup must show the captured tab's title and **改擷取此分頁** → clicking it captures the active tab and unlocks the controls.
@@ -138,7 +140,9 @@ Date: 2026-09-26
 - [ ] **百分比偏離**：基準 100、套用 80 → 提示「目前音量比基準低 20%」；套用回 100 → 「目前音量與基準一致」；基準 50、套用 60 → 「目前音量比基準高 20%」。
 - [ ] **面板離線可用且置頂**：`YouTube 音量` 面板在 header 下方、連線列之前（`reveal-delay-1`）；未連線狀態下套用／淡出直接生效（無「按連線後即可分析」之類提示）。
 - [ ] **分析不復存在**：面板無「響度分析」區塊與「分析音量水平」按鈕；popup 程式碼不發送 `MEASURE_LOUDNESS`（offscreen 收到也回 error）。
-- [ ] **連線功能未受影響**：移除 source 分支 tap 後，連線、切 bypass／伴奏／引擎、自動跟隨音訊皆正常（無多餘接線）。（「引擎」切換已由 ADR-0007 移除。）
+- [ ] **連線功能未受影響**：移除 source 分支 tap 後，連線、切 bypass／伴奏、自動跟隨音訊皆正常（無多餘接線）。（「引擎」切換已由 ADR-0007 移除。）
+
+> **ADR-0007 部分覆核（2026-09-27）**：本節的 bypass／伴奏／交接／頁面記憶／badge 項目已在 ADR-0007 的實機清單中確認通過，見文末表格。以下保留為該次變更當時的原始記錄。
 
 ---
 
@@ -159,19 +163,47 @@ Date: 2026-09-27
 - `git diff --check` — passed.
 - 新增 CI：`.github/workflows/ci.yml` 跑 typecheck / test / build，並斷言兩支 content script 仍是 classic script（無 `import`／`export`）且 `dist/` 產物齊全。
 
-## Chrome runtime checks — pending
+## Chrome runtime checks — passed
 
-Load `dist` as an unpacked extension and walk the list below. Record the results here.
+Run on 2026-09-27 against `dist` loaded as an unpacked extension, Chrome with
+developer mode on. All ten items passed. Recorded here so a later reader knows
+what was actually observed rather than what was intended.
 
-- [ ] **信號路徑讀數**：連線 YouTube 音訊 → 「信號路徑」顯示 `Signalsmith`／「即時移調，節奏不變」；拖動打孔軌到 +3 st，音高改變而節奏不變，讀數即時更新。
-- [ ] **伴奏模式**：開啟後「信號路徑」轉為 `伴奏`；低頻（bass／kick）確實跟著移調，無爆音、無低頻缺口。這條路徑從未 involve RubberBand，行為應與移除前一致。
-- [ ] **旁路**：開啟後顯示 `旁路`；bypass 按鈕呈 grease 叉；音訊為原始未處理輸出。
-- [ ] **共振峰保護**：開啟後人聲音色不隨移調改變（Signalsmith 的 `formantCompensation`，非移除前的 RubberBand 路徑）。
-- [ ] **未連線**：顯示 `待命`／「尚未連線」。
-- [ ] **引擎未啟動的誠實呈現**：若可製造引擎初始化失敗（例如阻擋 `processors/signalsmith-stretch.js`），應顯示 `未處理`／「移調引擎未啟動，音訊直接通過」且記號為橘色 grease 叉，而不是假裝在處理。
-- [ ] **handover 交接**：切換分頁後輸出總閘淡出淡入無爆音，且新分頁的頁面記憶正確套用。
-- [ ] **舊記錄相容**：從移除前的版本升級，既有 `page:<url>` 記錄裡殘留的 `engine` 欄位不造成錯誤，且任一設定變更後該欄位消失。
-- [ ] **延遲量測**：量一次 Signalsmith 的實際輸出延遲（`node.latency()`），記錄在 README——這是移除雙引擎後唯一還缺的公開數據。
+| # | Check | Result |
+| --- | --- | --- |
+| 1 | **Level unchanged after removing `gainA` / `gainB`** | 音量不變. The graph lost two gain stages and the two crossover bands still sum to unity in the passband, so output level is unaffected. No clipping or pumping on bypass / accompaniment / tab-switch transitions. |
+| 2 | **Engine failure is reported honestly** | Renamed `dist/processors/signalsmith-stretch.js`, reloaded the extension: the readout showed `未處理`／「移調引擎未啟動，音訊直接通過」with the orange grease cross, and audio passed through unprocessed. Restoring the file and reloading returned it to `Signalsmith`. Not silent, not broken. |
+| 3 | **Fast drag lands on the value you hear** | 快速拖動沒問題. Confirms the `warmEngine()` re-apply in the same commit is doing its job. |
+| 4 | **Accompaniment mode: lowband follows the transposition** | 低音明顯變厚實 — **expected, and the point of the mode.** The lowband path is the project's own resampler, not the stretcher, so bass partials move together and keep their harmonic structure instead of being smeared. Distinct from a level fault: the bass is denser, not louder, and nothing is being squashed by the limiter. |
+| 5 | **Bypass** | 讀數 `旁路`, original audio unprocessed. |
+| 6 | **Formant preservation** | 音色不隨移調改變. Worth noting this path is now purely Signalsmith's `formantCompensation`; previously both engines had their own formant control. |
+| 7 | **Tab handover** | 兩個分頁各自的移調量正確套用，交接瞬間沒有「舊分頁用新設定播出」，無爆音. |
+| 8 | **YouTube volume panel** | 套用／淡出正常，500 ms ramp，原生音量條同步. The MAIN-world bridge still works after the extension reload. |
+| 9 | **Per-page memory** | 同站兩支影片互相獨立，切換各自套用. |
+| 10 | **Toolbar badge** | 綠 `ON` / 橘 `ON·` / 紅 `!` all as documented. |
+
+### What item 4 actually confirms
+
+Accompaniment mode routes the two bands through different algorithms, so the
+bass is *supposed* to sound different — denser is the intended result, not a
+regression:
+
+| | accompaniment off | accompaniment on |
+| --- | --- | --- |
+| below 175 Hz | Signalsmith time-domain stretch | `lowband-resampler.js` (WSOLA/PSOLA) |
+| limiter | none | `DynamicsCompressor` (-3 dB, ratio 8) |
+
+The failure mode to distinguish from is a summing fault: if the crossover bands
+or the stereo sum (ADR-0001) were adding ~6 dB, the bass would also sound
+"thicker" — but the limiter would clamp it and the result would read as
+squeezed rather than solid. It did not.
+
+A second, sharper check on the alignment delay: with correct alignment a
+sustained bass note stays **steady**, merely transposed. With
+`ACCOMPANIMENT_ALIGN_DELAY_S` wrong, the two copies of the same partial drift
+apart and the note develops a slow beating or roughness. No beating was
+reported, which is the first real-world confirmation that the 90 ms constant
+still matches the engine's 100 ms after the removal.
 
 ## Latency measurement
 

@@ -59,7 +59,8 @@ Fidelitone 是一個 Chrome 擴充套件：即時移調任何 Chrome 分頁正�
 - `docs/adr/`：七份已接受的架構決策（伴奏立體聲混音、架構深化、per-page memory、YouTube 音量、移除 loudness 分析、單一移調引擎）。
 - `src/popup/`：可運作的 popup 實作（`popup.html` / `popup.css` / `popup.ts`）——現行視覺系統的權威。
 - `icons/`、`assets/`：現有圖示與按鈕 icon 資產。
-- `src/tests/`：121 個 vitest 測試（15 檔），覆蓋 DSP、routing、popup state、capture lifecycle。
+- `src/tests/`：131 個 vitest 測試（16 檔），覆蓋 DSP、routing、popup state、capture lifecycle。
+- `docs/runtime-verification.md`：ADR-0007 的實機驗證**已完成**（2026-09-27，十項全過），含伴奏模式低音變化是預期行為的判讀。
 
 **不存在、不得捏造**：無使用者見證、無案例研究、無新聞報導、無 Chrome Web Store 上架素材（截圖、宣傳文案、評價）、無競品比較數據、無付費方案或定價。
 

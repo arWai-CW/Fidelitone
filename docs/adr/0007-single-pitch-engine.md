@@ -49,13 +49,15 @@ GPL 不禁止開源，這條路是合法的。但對這個專案它是淨損失�
 
 ## 驗收
 
-- `npm run typecheck`、`npm test`（121 tests / 15 files）、`npm run build` 全綠。
+- `npm run typecheck`、`npm test`、`npm run build` 全綠。測試數 139 → 121（刪六檔），後續 commit 補上 `PitchEngine` 的直接覆蓋 → **131 tests / 16 files**。
 - `dist/` 876 KB → 392 KB；`dist/processors/` 只剩 crossover、lowband-resampler、passthrough、signalsmith。
 - `grep -ri "rubberband" src/ dist/ manifest.json` 無結果（`docs/` 的歷史 ADR 記錄除外）。
 - 移除的測試檔三個：`rubberband-live-shifter.test.ts`、`rb-worker.test.ts`、`engine-switching.test.ts`；另刪兩個與本 ADR 無關的死碼測試（見下）。
 - 死碼一併移除（無任何 production importer，ADR-0006 同一原則）：`src/lib/opus-encoder.ts`、`src/lib/wav-writer.ts` 與其測試。
 - `GraphRouter` 新增測試涵蓋引擎缺席時的 passthrough fallback，以及 `routeFor` 在引擎未啟動時回報 `passthrough`。
-- 實機（待驗）：開啟 YouTube、連線音訊、拖移調軌、確認「信號路徑」顯示 `Signalsmith`；開伴奏模式確認顯示 `伴奏`；開旁路確認顯示 `旁路`。
+- 實機：**已驗證 2026-09-27，十項全過**（音量、引擎失敗誠實回報、快速拖動、伴奏模式、旁路、共振峰保護、分頁交接、YouTube 音量面板、頁面記憶獨立、badge）。完整結果與觀察記在 `docs/runtime-verification.md` 的 ADR-0007 區塊。
+
+  伴奏模式「低音明顯變厚實」是**預期結果**且是該模式存在的理由：lowband 走自己的 resampler，泛音一起搬、諧波結構保留，比走拉伸更實。並且可與加總故障（+6dB 被 limiter 壓扁）區分開。持續低音沒有出現拍頻，這是移除 RubberBand 後 `0.09` 對齊常數仍與引擎 100 ms 相符的第一次實機確認。
 
 ## 連帶的量測：引擎延遲
 
