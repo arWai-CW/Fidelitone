@@ -1,0 +1,404 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-27T00:01:05+08:00",
+  "title": "Design System: Fidelitone",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Grain Orange",
+        "canonical": "#ff5a1f",
+        "tonalRamp": [
+          "#3a1105",
+          "#5f1d09",
+          "#8a2c0d",
+          "#b53a10",
+          "#d94712",
+          "#ff5a1f",
+          "#ff7d49",
+          "#ffa278"
+        ]
+      },
+      "primary-deep": {
+        "role": "primary",
+        "displayName": "Deep Orange",
+        "canonical": "#d94712",
+        "tonalRamp": [
+          "#340f04",
+          "#571a07",
+          "#7d260a",
+          "#a6320d",
+          "#d94712",
+          "#e8551f",
+          "#f46a37",
+          "#ff8253"
+        ]
+      },
+      "ground-ink": {
+        "role": "neutral",
+        "displayName": "Bench Ink",
+        "canonical": "#0a0a0a",
+        "tonalRamp": [
+          "#050505",
+          "#0a0a0a",
+          "#101010",
+          "#161616",
+          "#1d1d1d",
+          "#242424",
+          "#2b2b2b",
+          "#333333"
+        ]
+      },
+      "surface-panel": {
+        "role": "neutral",
+        "displayName": "Panel",
+        "canonical": "#121212",
+        "tonalRamp": [
+          "#0a0a0a",
+          "#121212",
+          "#181818",
+          "#1f1f1f",
+          "#262626",
+          "#2e2e2e",
+          "#363636",
+          "#3f3f3f"
+        ]
+      },
+      "surface-charred": {
+        "role": "neutral",
+        "displayName": "Charred",
+        "canonical": "#1a1a1a",
+        "tonalRamp": [
+          "#101010",
+          "#1a1a1a",
+          "#202020",
+          "#272727",
+          "#2e2e2e",
+          "#363636",
+          "#3f3f3f",
+          "#494949"
+        ]
+      },
+      "spool": {
+        "role": "neutral",
+        "displayName": "Spool Gray",
+        "canonical": "#2e2e2e",
+        "tonalRamp": [
+          "#1a1a1a",
+          "#242424",
+          "#2e2e2e",
+          "#383838",
+          "#444444",
+          "#525252",
+          "#616161",
+          "#727272"
+        ]
+      },
+      "punched-white": {
+        "role": "neutral",
+        "displayName": "Punched White",
+        "canonical": "#f2f2f2",
+        "tonalRamp": [
+          "#8d8d8d",
+          "#a2a2a2",
+          "#b5b5b5",
+          "#c7c7c7",
+          "#d8d8d8",
+          "#e6e6e6",
+          "#f2f2f2",
+          "#fafafa"
+        ]
+      },
+      "paper-white": {
+        "role": "neutral",
+        "displayName": "Paper White",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#a8a8a8",
+          "#b8b8b8",
+          "#c8c8c8",
+          "#d8d8d8",
+          "#e6e6e6",
+          "#f2f2f2",
+          "#fafafa",
+          "#ffffff"
+        ]
+      },
+      "text-2": {
+        "role": "neutral",
+        "displayName": "Secondary Text",
+        "canonical": "#a8a8a8",
+        "tonalRamp": [
+          "#5a5a5a",
+          "#6b6b6b",
+          "#7b7b7b",
+          "#8b8b8b",
+          "#9a9a9a",
+          "#a8a8a8",
+          "#b8b8b8",
+          "#c8c8c8"
+        ]
+      },
+      "text-3": {
+        "role": "neutral",
+        "displayName": "Tertiary Text",
+        "canonical": "#8d8d8d",
+        "tonalRamp": [
+          "#4a4a4a",
+          "#5a5a5a",
+          "#6a6a6a",
+          "#7a7a7a",
+          "#8d8d8d",
+          "#9d9d9d",
+          "#adadad",
+          "#bdbdbd"
+        ]
+      },
+      "on-orange-muted": {
+        "role": "neutral",
+        "displayName": "On-Window Muted",
+        "canonical": "rgba(10, 10, 10, 0.72)",
+        "tonalRamp": [
+          "rgba(10,10,10,0.36)",
+          "rgba(10,10,10,0.44)",
+          "rgba(10,10,10,0.52)",
+          "rgba(10,10,10,0.60)",
+          "rgba(10,10,10,0.68)",
+          "rgba(10,10,10,0.72)",
+          "rgba(10,10,10,0.84)",
+          "rgb(10,10,10)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display Readout",
+        "purpose": "音高讀數 +0.00 st——全站唯一的展示級（36px/700/線高 1），tabular-nums，右側單位 st 為 16px/600/0.1em（text-3）。"
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "連線列主文案（等待開始／連線中…），15.5px/600/0.03em，punched-white。"
+      },
+      "title": {
+        "displayName": "Section Title",
+        "purpose": "strip 的 h2 標題：13px/700/0.14em，一律 grain orange；中文標題靠字重與字距取得刻印感。"
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "popup 預設文字 14px/400/1.45；說明行降一級到 12.5px（helper / desc / panel-note）。"
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "組標籤（處理引擎、基準音量）11.5px/600/0.2em；刻度標籤 11px/600/0.04em tabular-nums；wordmark 17px/700/0.16em 全大寫。"
+      },
+      "fieldNumber": {
+        "displayName": "Field Number",
+        "purpose": "基準音量輸入框內的數字 25px/700 tabular-nums——Display 之下、Headline 之上的專用級；右接的 % 為 17px/600 text-3。"
+      },
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "台面左上角的 FIDELITONE 刻印 17px/700/0.16em 全大寫；品牌鎖定級，不參與內部層級。"
+      }
+    },
+    "shadows": [
+      {
+        "name": "flag-lift",
+        "value": "drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6))",
+        "purpose": "折角膠帶旗浮在膠片條上的唯一投影（旗用 filter 而非 box-shadow，配合 clip-path）。"
+      },
+      {
+        "name": "pin-lift",
+        "value": "0 2px 4px rgba(0, 0, 0, 0.65)",
+        "purpose": "大頭針把進階選項「釘」在台面上。"
+      },
+      {
+        "name": "tooltip-lift",
+        "value": "0 4px 14px rgba(0, 0, 0, 0.55)",
+        "purpose": "唯一的浮層（tooltip）投影。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "snap-ease",
+        "value": "cubic-bezier(0.32, 0.72, 0, 1)",
+        "purpose": "全域狀態過場的預設緩動（吸附手感）：旗 120ms、切格 180ms、按鈕 140ms、開關 160ms、膠片條底色 260ms。"
+      },
+      {
+        "name": "press-linear",
+        "value": "90ms linear",
+        "purpose": "按鈕按下的 translateY(1px) 位移，線性、無彈性。"
+      },
+      {
+        "name": "commit-flash",
+        "value": "320ms ease-out (brightness 2 → 1)",
+        "purpose": "提交時橘色膠帶條一閃——兩個編排記憶點之一；reduced-motion 下關閉。"
+      },
+      {
+        "name": "connect-sweep",
+        "value": "1.1s linear infinite",
+        "purpose": "連線中膠片條上的橘色光帶掃描，搭配記號旋轉 mark-turn 1.4s；reduced-motion 下關閉。"
+      }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Tape Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "主按鈕「連線音訊」：膠帶條——42px 高、橘底黑字、左右各一列 1.7px 打孔撕齒邊。",
+      "html": "<button class=\"ds-tape-btn\" type=\"button\"><svg viewBox=\"0 0 49.548 49.549\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M30.203,4.387v4.385c7.653,2.332,13.238,9.451,13.238,17.857c0,10.293-8.373,18.667-18.667,18.667S6.106,36.922,6.106,26.629c0-8.405,5.585-15.525,13.238-17.857V4.387C9.323,6.835,1.855,15.866,1.855,26.629c0,12.639,10.281,22.92,22.919,22.92s22.92-10.281,22.92-22.92C47.694,15.865,40.224,6.835,30.203,4.387z\"/><path d=\"M24.776,27.225c-1.41,0-2.554-1.145-2.554-2.555V2.554c0-1.41,1.144-2.554,2.554-2.554c1.41,0,2.554,1.144,2.554,2.554v24.67C27.33,26.08,26.186,27.225,24.776,27.225z\"/></svg><span>連線音訊</span></button>",
+      "css": ".ds-tape-btn{position:relative;display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 16px;background:var(--orange,#ff5a1f);color:var(--on-orange,#0a0a0a);border:0;border-radius:3px;font-family:var(--font,\"Barlow Condensed\",\"Noto Sans TC\",ui-sans-serif,sans-serif);font-size:15px;font-weight:700;letter-spacing:.07em;cursor:pointer;transition:background 140ms cubic-bezier(.32,.72,0,1),transform 90ms linear}.ds-tape-btn::before,.ds-tape-btn::after{content:\"\";position:absolute;top:8px;bottom:8px;width:4px;background-image:radial-gradient(circle 1.7px at 50% 4px,var(--on-orange,#0a0a0a) 98%,transparent 100%);background-size:100% 9px;background-repeat:repeat-y;pointer-events:none}.ds-tape-btn::before{left:6px}.ds-tape-btn::after{right:6px}.ds-tape-btn svg{width:15px;height:15px;flex:0 0 auto}.ds-tape-btn:hover:not(:disabled){background:var(--orange-deep,#d94712)}.ds-tape-btn:active:not(:disabled){transform:translateY(1px)}.ds-tape-btn:focus-visible{outline:2px solid var(--orange,#ff5a1f);outline-offset:2px}.ds-tape-btn:disabled{background:var(--spool,#2e2e2e);color:var(--text-3,#8d8d8d);cursor:default}.ds-tape-btn:disabled::before,.ds-tape-btn:disabled::after{background-image:radial-gradient(circle 1.7px at 50% 4px,var(--text-3,#8d8d8d) 98%,transparent 100%)}"
+    },
+    {
+      "name": "Tape Button (Connected)",
+      "kind": "button",
+      "refersTo": "button-primary-connected",
+      "description": "連線中的主按鈕：打孔白窗反白＝live；hover 轉 paper-white。lost 時回到 ink 底＋橘字＋inset 1.5px 橘邊、撕齒點轉橘。",
+      "html": "<button class=\"ds-tape-btn ds-tape-btn--connected\" type=\"button\"><svg viewBox=\"0 0 49.548 49.549\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M30.203,4.387v4.385c7.653,2.332,13.238,9.451,13.238,17.857c0,10.293-8.373,18.667-18.667,18.667S6.106,36.922,6.106,26.629c0-8.405,5.585-15.525,13.238-17.857V4.387C9.323,6.835,1.855,15.866,1.855,26.629c0,12.639,10.281,22.92,22.919,22.92s22.92-10.281,22.92-22.92C47.694,15.865,40.224,6.835,30.203,4.387z\"/><path d=\"M24.776,27.225c-1.41,0-2.554-1.145-2.554-2.555V2.554c0-1.41,1.144-2.554,2.554-2.554c1.41,0,2.554,1.144,2.554,2.554v24.67C27.33,26.08,26.186,27.225,24.776,27.225z\"/></svg><span>連線中</span></button>",
+      "css": ".ds-tape-btn{position:relative;display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 16px;background:var(--orange,#ff5a1f);color:var(--on-orange,#0a0a0a);border:0;border-radius:3px;font-family:var(--font,\"Barlow Condensed\",\"Noto Sans TC\",ui-sans-serif,sans-serif);font-size:15px;font-weight:700;letter-spacing:.07em;cursor:pointer;transition:background 140ms cubic-bezier(.32,.72,0,1),transform 90ms linear}.ds-tape-btn::before,.ds-tape-btn::after{content:\"\";position:absolute;top:8px;bottom:8px;width:4px;background-image:radial-gradient(circle 1.7px at 50% 4px,var(--on-orange,#0a0a0a) 98%,transparent 100%);background-size:100% 9px;background-repeat:repeat-y;pointer-events:none}.ds-tape-btn::before{left:6px}.ds-tape-btn::after{right:6px}.ds-tape-btn svg{width:15px;height:15px;flex:0 0 auto}.ds-tape-btn--connected{background:var(--punched-white,#f2f2f2)}.ds-tape-btn--connected:hover:not(:disabled){background:var(--paper-white,#ffffff)}.ds-tape-btn--connected:active:not(:disabled){transform:translateY(1px)}.ds-tape-btn--connected:focus-visible{outline:2px solid var(--orange,#ff5a1f);outline-offset:2px}.ds-tape-btn--lost{background:var(--ground-ink,#0a0a0a);color:var(--orange,#ff5a1f);box-shadow:inset 0 0 0 1.5px var(--orange,#ff5a1f)}.ds-tape-btn--lost::before,.ds-tape-btn--lost::after{background-image:radial-gradient(circle at 50% 4px,var(--orange,#ff5a1f) 0 1.7px,var(--ground-ink,#0a0a0a) 1.9px)}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "次要動作（淡出）：透明底、橘描邊橘字，hover 填滿橘底反黑。",
+      "html": "<button class=\"ds-ghost-btn\" type=\"button\">淡出</button>",
+      "css": ".ds-ghost-btn{height:44px;padding:0 16px;background:transparent;color:var(--orange,#ff5a1f);border:1px solid var(--orange,#ff5a1f);border-radius:3px;font-family:var(--font,\"Barlow Condensed\",\"Noto Sans TC\",ui-sans-serif,sans-serif);font-size:15px;font-weight:600;letter-spacing:.08em;cursor:pointer;transition:background 140ms cubic-bezier(.32,.72,0,1),color 140ms cubic-bezier(.32,.72,0,1)}.ds-ghost-btn:hover:not(:disabled){background:var(--orange,#ff5a1f);color:var(--on-orange,#0a0a0a)}.ds-ghost-btn:focus-visible{outline:2px solid var(--orange,#ff5a1f);outline-offset:2px}.ds-ghost-btn:disabled{color:var(--text-3,#8d8d8d);border-color:var(--spool,#2e2e2e);cursor:default}"
+    },
+    {
+      "name": "Mark Button (Bypass)",
+      "kind": "button",
+      "refersTo": "button-mark",
+      "description": "記號式切換鈕：42×42 透明底＋1px spool 邊；pressed＝反白＋-7deg grease 叉＝cut／無效語意。",
+      "html": "<button class=\"ds-mark-btn\" type=\"button\" aria-pressed=\"false\" aria-label=\"啟用旁路\"><svg viewBox=\"-0.81 5.90 23.91 12.20\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M20,16L23,13L20,10L20,12L18.748,12C17.86,8.55 14.728,6 11,6C7.272,6 4.14,8.55 3.252,12L-0.71,12L-0.71,14L5,14C5,10.686 7.686,8 11,8C14.314,8 17,10.686 17,14L20,14L20,16Z\"/><path d=\"M15,14C15,16.209 13.209,18 11,18C8.791,18 7,16.209 7,14C7,11.791 8.791,10 11,10C13.209,10 15,11.791 15,14Z\"/></svg><svg class=\"ds-mark-btn__cross\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.6\" stroke-linecap=\"round\" aria-hidden=\"true\"><path d=\"M4.5 5.5 19.5 18.5\"/><path d=\"M19.5 5.5 4.5 18.5\"/></svg></button>",
+      "css": ".ds-mark-btn{position:relative;display:inline-grid;place-items:center;width:42px;height:42px;background:transparent;color:var(--punched-white,#f2f2f2);border:1px solid var(--spool,#2e2e2e);border-radius:3px;cursor:pointer;transition:border-color 140ms cubic-bezier(.32,.72,0,1),color 140ms cubic-bezier(.32,.72,0,1)}.ds-mark-btn>svg:first-child{width:22px;height:14px}.ds-mark-btn__cross{position:absolute;inset:7px;width:auto;height:auto;color:var(--orange,#ff5a1f);display:none;transform:rotate(-7deg)}.ds-mark-btn:hover:not(:disabled){border-color:var(--orange,#ff5a1f);color:var(--orange,#ff5a1f)}.ds-mark-btn:focus-visible{outline:2px solid var(--orange,#ff5a1f);outline-offset:2px}.ds-mark-btn[aria-pressed=\"true\"]{background:var(--punched-white,#f2f2f2);border-color:var(--punched-white,#f2f2f2);color:var(--on-orange,#0a0a0a)}.ds-mark-btn[aria-pressed=\"true\"]>svg:first-child{opacity:.4}.ds-mark-btn[aria-pressed=\"true\"] .ds-mark-btn__cross{display:block}.ds-mark-btn:disabled{opacity:.45;cursor:default}"
+    },
+    {
+      "name": "Switch Row",
+      "kind": "input",
+      "refersTo": "input-switch",
+      "description": "開關列（半音吸附／共振峰保護／伴奏模式）：38×21、3px 圓角，勾選＝橘底黑鈕；整列可點、focus ring 打在鈕上。",
+      "html": "<label class=\"ds-switch-row\"><input type=\"checkbox\" role=\"switch\" checked><span class=\"ds-switch\" aria-hidden=\"true\"></span><span class=\"ds-switch-copy\"><span class=\"ds-switch-label\">半音吸附</span><span class=\"ds-switch-helper\">以整數半音調整</span></span></label>",
+      "css": ".ds-switch-row{display:flex;align-items:flex-start;gap:11px;padding:11px 0;cursor:pointer;font-family:var(--font,\"Barlow Condensed\",\"Noto Sans TC\",ui-sans-serif,sans-serif)}.ds-switch-row input{position:absolute;width:1px;height:1px;opacity:0}.ds-switch{position:relative;flex:0 0 auto;width:38px;height:21px;margin-top:2px;background:var(--ground-ink,#0a0a0a);border:1px solid var(--spool,#2e2e2e);border-radius:3px;transition:background 160ms cubic-bezier(.32,.72,0,1),border-color 160ms cubic-bezier(.32,.72,0,1)}.ds-switch::after{content:\"\";position:absolute;top:2px;left:2px;width:14px;height:15px;background:var(--text-2,#a8a8a8);transition:transform 160ms cubic-bezier(.32,.72,0,1),background 160ms cubic-bezier(.32,.72,0,1)}.ds-switch-row input:checked+.ds-switch{background:var(--orange,#ff5a1f);border-color:var(--orange,#ff5a1f)}.ds-switch-row input:checked+.ds-switch::after{transform:translateX(17px);background:var(--on-orange,#0a0a0a)}.ds-switch-row input:focus-visible+.ds-switch{outline:2px solid var(--orange,#ff5a1f);outline-offset:2px}.ds-switch-row input:disabled+.ds-switch{opacity:.5}.ds-switch-label{font-size:14.5px;font-weight:600;color:var(--punched-white,#f2f2f2)}.ds-switch-helper{display:block;margin-top:2px;font-size:12.5px;font-weight:400;line-height:1.55;color:var(--text-2,#a8a8a8)}"
+    },
+    {
+      "name": "Volume Number Field",
+      "kind": "input",
+      "refersTo": "input-number",
+      "description": "基準音量數字輸入：78×44、25px/700 tabular-nums 居中，focus 轉橘邊＋橘 outline，右接 % 單位。",
+      "html": "<span class=\"ds-volume-field\"><input class=\"ds-volume-number\" type=\"number\" min=\"0\" max=\"100\" step=\"1\" value=\"100\" aria-label=\"基準音量（0–100%）\"><span class=\"ds-volume-percent\" aria-hidden=\"true\">%</span></span>",
+      "css": ".ds-volume-field{display:inline-flex;align-items:center;gap:8px;font-family:var(--font,\"Barlow Condensed\",\"Noto Sans TC\",ui-sans-serif,sans-serif)}.ds-volume-number{width:78px;height:44px;padding:0 4px;background:var(--ground-ink,#0a0a0a);color:var(--punched-white,#f2f2f2);border:1px solid var(--spool,#2e2e2e);border-radius:3px;font-family:inherit;font-size:25px;font-weight:700;font-variant-numeric:tabular-nums;text-align:center;-moz-appearance:textfield;transition:border-color 140ms cubic-bezier(.32,.72,0,1)}.ds-volume-number::-webkit-outer-spin-button,.ds-volume-number::-webkit-inner-spin-button{opacity:.45}.ds-volume-number:focus-visible{border-color:var(--orange,#ff5a1f);outline:2px solid var(--orange,#ff5a1f);outline-offset:1px}.ds-volume-percent{font-size:17px;font-weight:600;color:var(--text-3,#8d8d8d)}"
+    },
+    {
+      "name": "Engine Card",
+      "kind": "card",
+      "refersTo": "card-engine",
+      "description": "信號路徑選卡：ink 底＋1px spool＋3px 圓角＋右緣撕齒孔列。selected＝整卡反白；disabled 改 charred 底不吃整體 opacity，disabled+selected 加右上 14px 打孔角。",
+      "html": "<button class=\"ds-engine-item is-selected\" type=\"button\" role=\"radio\" aria-checked=\"true\"><span class=\"ds-engine-info\"><span class=\"ds-engine-name\">Signalsmith Stretch</span><span class=\"ds-engine-desc\">適合人聲、獨奏樂器、高品質時域拉伸</span></span></button>",
+      "css": ".ds-engine-item{position:relative;width:100%;text-align:left;padding:11px 36px 11px 13px;background:var(--ground-ink,#0a0a0a);color:var(--punched-white,#f2f2f2);border:1px solid var(--spool,#2e2e2e);border-radius:3px;font-family:var(--font,\"Barlow Condensed\",\"Noto Sans TC\",ui-sans-serif,sans-serif);cursor:pointer;transition:border-color 140ms cubic-bezier(.32,.72,0,1),background 140ms cubic-bezier(.32,.72,0,1)}.ds-engine-item::after{content:\"\";position:absolute;top:50%;right:11px;transform:translateY(-50%);width:4px;height:17px;background-image:radial-gradient(circle 1.7px at 50% 3px,var(--spool,#2e2e2e) 98%,transparent 100%);background-size:100% 8px;background-repeat:repeat-y;pointer-events:none}.ds-engine-item:hover:not(:disabled){border-color:var(--orange,#ff5a1f)}.ds-engine-item:focus-visible{outline:2px solid var(--orange,#ff5a1f);outline-offset:2px}.ds-engine-info{display:flex;flex-direction:column;gap:3px}.ds-engine-name{font-size:15px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}.ds-engine-desc{font-size:12.5px;font-weight:400;line-height:1.5;color:var(--text-2,#a8a8a8)}.ds-engine-item.is-selected{background:var(--punched-white,#f2f2f2);border-color:var(--punched-white,#f2f2f2);color:var(--on-orange,#0a0a0a)}.ds-engine-item.is-selected .ds-engine-desc{color:rgba(10,10,10,.72)}.ds-engine-item.is-selected::after{background-image:radial-gradient(circle 1.7px at 50% 3px,var(--on-orange,#0a0a0a) 98%,transparent 100%)}.ds-engine-item:disabled{background:var(--surface-charred,#1a1a1a);border-color:var(--surface-charred,#1a1a1a);cursor:default}.ds-engine-item:disabled.is-selected{background:var(--punched-white,#f2f2f2);border-color:var(--punched-white,#f2f2f2)}.ds-engine-item:disabled.is-selected::before{content:\"\";position:absolute;top:-1px;right:-1px;width:14px;height:14px;background:var(--surface-panel,#121212);clip-path:polygon(0 0,100% 0,100% 100%)}"
+    },
+    {
+      "name": "Punched Window (Error)",
+      "kind": "custom",
+      "refersTo": "banner-punched",
+      "description": "錯誤橫幅：打孔白窗＋左側 grease 叉記號；主文案寫問題、次行寫補救。",
+      "html": "<div class=\"ds-punched-window\" role=\"alert\"><span class=\"ds-punched-window__text\">無法寫入頁面記憶</span><span class=\"ds-punched-window__recovery\">再試一次；若一直失敗，重新開啟這個分頁</span></div>",
+      "css": ".ds-punched-window{position:relative;padding:11px 16px 12px 42px;background:var(--punched-white,#f2f2f2);color:var(--on-orange,#0a0a0a);font-family:var(--font,\"Barlow Condensed\",\"Noto Sans TC\",ui-sans-serif,sans-serif);line-height:1.5}.ds-punched-window::before{content:\"\";position:absolute;left:16px;top:14px;width:16px;height:16px;background:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230a0a0a' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M5 5l14 14'/%3E%3Cpath d='M19 5L5 19'/%3E%3C/svg%3E\") center / contain no-repeat}.ds-punched-window__text{display:block;font-size:13.5px;font-weight:600}.ds-punched-window__recovery{display:block;font-size:12.5px;font-weight:400;color:rgba(10,10,10,.72)}"
+    },
+    {
+      "name": "Rail Status Marks",
+      "kind": "custom",
+      "refersTo": "status-marks",
+      "description": "狀態記號＋文案雙重表達：disconnected 空心、connecting 虛線旋轉、connected 實心橘、lost grease 叉橘；文字隨狀態跟色。",
+      "html": "<span class=\"ds-status\" data-state=\"connected\"><span class=\"ds-status__mark\"><svg class=\"m m-idle\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3.5\" y=\"3.5\" width=\"9\" height=\"9\"/></svg><svg class=\"m m-connecting\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-dasharray=\"3 2.5\"><rect x=\"3.5\" y=\"3.5\" width=\"9\" height=\"9\"/></svg><svg class=\"m m-live\" viewBox=\"0 0 16 16\" fill=\"currentColor\"><rect x=\"3\" y=\"3\" width=\"10\" height=\"10\"/></svg><svg class=\"m m-lost\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\"><path d=\"M3.5 3.5 12.5 12.5\"/><path d=\"M12.5 3.5 3.5 12.5\"/></svg></span><span class=\"ds-status__text\">已連線</span></span>",
+      "css": ".ds-status{display:inline-flex;align-items:center;gap:9px;font-family:var(--font,\"Barlow Condensed\",\"Noto Sans TC\",ui-sans-serif,sans-serif)}.ds-status__mark{position:relative;display:inline-flex;width:14px;height:14px;color:var(--text-3,#8d8d8d)}.ds-status .m{position:absolute;inset:0;width:14px;height:14px;display:none}.ds-status__text{font-size:13.5px;font-weight:600;letter-spacing:.08em;color:var(--punched-white,#f2f2f2)}.ds-status[data-state=\"disconnected\"] .m-idle{display:block}.ds-status[data-state=\"connecting\"] .m-connecting{display:block;animation:ds-mark-turn 1.4s linear infinite}.ds-status[data-state=\"connecting\"] .ds-status__text{color:var(--orange,#ff5a1f)}.ds-status[data-state=\"connected\"] .m-live{display:block;color:var(--orange,#ff5a1f)}.ds-status[data-state=\"lost\"] .m-lost{display:block;color:var(--orange,#ff5a1f)}@keyframes ds-mark-turn{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.ds-status[data-state=\"connecting\"] .m-connecting{animation:none}}"
+    },
+    {
+      "name": "Film-Strip Rail",
+      "kind": "custom",
+      "refersTo": "film-rail",
+      "description": "簽名件：打孔膠片軌＝音高刻度。雙層 repeating gradients 畫 25 格半音、折角膠帶旗以同一定位式吸附、膠片條上下打孔＋切格跟旗移動；連線後轉橘（實際建置另疊本機 grain.png，此處省略該 raster）。repeating gradients 是世界的量測／打孔幾何，非裝飾條紋。",
+      "html": "<div class=\"ds-rail\" style=\"--pitch-pct:.5\"><div class=\"ds-rail__scale\"><span class=\"ds-tick\" style=\"--p:0\">−12</span><span class=\"ds-tick\" style=\"--p:.5\">0</span><span class=\"ds-tick\" style=\"--p:1\">+12</span><span class=\"ds-flag\"></span></div><div class=\"ds-film\"><span class=\"ds-cut-cell\"></span></div></div>",
+      "css": ".ds-rail{position:relative;padding:12px 16px 0;background:var(--surface-panel,#121212);font-family:var(--font,\"Barlow Condensed\",\"Noto Sans TC\",ui-sans-serif,sans-serif)}.ds-rail__scale{position:relative;height:46px}.ds-rail__scale::after{content:\"\";position:absolute;left:0;right:0;bottom:0;height:15px;background-image:repeating-linear-gradient(90deg,var(--orange,#ff5a1f) 0 1.5px,transparent 1.5px calc((100% - 16px)/4)),repeating-linear-gradient(90deg,var(--spool,#2e2e2e) 0 1.5px,transparent 1.5px calc((100% - 16px)/24));background-size:100% 15px,100% 8px;background-position:8px bottom,8px bottom;background-repeat:no-repeat}.ds-tick{position:absolute;bottom:24px;left:calc(var(--p)*(100% - 16px) + 8px);transform:translateX(-50%);font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--text-3,#8d8d8d);font-variant-numeric:tabular-nums}.ds-flag{position:absolute;z-index:2;top:24px;left:calc(var(--pitch-pct,.5)*(100% - 16px) + 8px);transform:translateX(-50%);width:17px;height:40px;pointer-events:none;background:linear-gradient(104deg,var(--orange,#ff5a1f) 0 64%,var(--orange-deep,#d94712) 64% 100%);clip-path:polygon(0 0,100% 0,100% 68%,50% 100%,0 68%);filter:drop-shadow(0 2px 3px rgba(0,0,0,.6));transition:left 120ms cubic-bezier(.32,.72,0,1)}.ds-film{position:relative;height:48px;background:var(--surface-charred,#1a1a1a);border-top:1px solid var(--hairline,#2e2e2e);overflow:hidden;transition:background-color 260ms cubic-bezier(.32,.72,0,1)}.ds-film.is-connected{background:var(--orange,#ff5a1f)}.ds-film::before,.ds-film::after{content:\"\";position:absolute;left:0;right:0;height:7px;background-image:repeating-linear-gradient(90deg,var(--ground-ink,#0a0a0a) 0 9px,transparent 9px 18px);background-repeat:repeat-x}.ds-film::before{top:5px}.ds-film::after{bottom:5px}.ds-cut-cell{position:absolute;top:5px;bottom:5px;width:calc(((100% - 16px)/24)*.72);left:calc(var(--pitch-pct,.5)*(100% - 16px) + 8px);transform:translateX(-50%);background:var(--ground-ink,#0a0a0a);transition:left 180ms cubic-bezier(.32,.72,0,1)}@media (prefers-reduced-motion:reduce){.ds-flag,.ds-cut-cell,.ds-film{transition:none}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "電影剪接台 select rail（The Cutting Bench Select Rail）",
+    "overview": "Fidelitone 的 popup 是一台口袋大小的電影剪接台：true black（#0a0a0a）台面，頂端一條打孔膠片軌橫貫 400px 固定寬的畫面，台面上唯一的彩色是 grain orange（#ff5a1f）。密度高、全平面、以「格」分層——每個功能區是串在軌下的一條 strip，靠 1px 髮絲線與底色差分隔，不靠卡片浮起。使用者在跟唱中途打開它，幾秒內看完狀態、把折角膠帶旗拖到自己的調，然後關掉；所以視覺必須一眼可辨、一次手勢到位。\n\n這個世界明確拒絕本類擴充功能的預設排法：深色面板＋霓虹點綴＋波形／等化器視覺＋滑桿堆疊（那正是被淘汰的舊皮）。沒有裝飾性波形、沒有色相分類的狀態燈、沒有第二種彩色。狀態一律用記號＋繁中文案雙重表達：grease 叉＝cut／無效、打孔角＝鎖定、虛線＝pending、反白＝selected／live。\n\n質地來自題材本身：`src/popup/grain.png` 是本機以 ffmpeg `nullsrc + geq random` 產生的 film-grain raster（無外部影像依賴），以 `overlay` 混色鋪在膠片條上；打孔孔洞、格距與半音刻度用 repeating gradients 畫出——那是剪接台上的量測工具，屬世界原生幾何，不是裝飾條紋。記憶點在軌上：沿打孔膠片軌刮擦，折角膠帶旗慣性滑動、吸附到半音格距，提交時橘色膠帶條一閃（320ms brightness flash）。",
+    "keyCharacteristics": [
+      "一條打孔膠片軌＝音高刻度；折角膠帶旗標記目前移調量，刻度、旗、切格、讀數共用同一條定位式。",
+      "單一 grain orange；狀態靠記號（grease 叉、打孔角、虛線、反白）＋文案，不靠色相。",
+      "打孔白窗（punched-white 底＋ground-ink 字）容納錯誤、tooltip 與 selected／live 反白。",
+      "條帶式堆疊版面，1px 髮絲分隔，圓角一律 3px；陰影只給有實體的零件（旗、針、tooltip）。",
+      "一個壓縮無襯線（Barlow Condensed，全大寫＋寬字距）＋ Noto Sans TC；所有數字 tabular-nums。"
+    ],
+    "rules": [
+      {
+        "name": "The Single-Ink Rule",
+        "body": "The Single-Ink Rule. 整個系統只允許一種彩色 grain orange。狀態用記號＋繁中文案表達，永遠不新增色相；橘色一出現就代表「可操作」或「正在發生」。",
+        "section": "colors"
+      },
+      {
+        "name": "The Punched-Window Rule",
+        "body": "The Punched-Window Rule. 打孔白窗（punched-white 底＋ground-ink 字）只給緊急或正在生效的內容：錯誤橫幅、tooltip、selected／live 反白。它是台面上唯一的「挖開」動作，濫用即失效。",
+        "section": "colors"
+      },
+      {
+        "name": "The Contrast Floor",
+        "body": "The Contrast Floor. text-2（#a8a8a8）與 text-3（#8d8d8d）在 #0a0a0a／#121212 底上都 ≥4.5:1（finish review 實測）。text-3 是文字的下限；更淺的灰只做線條、刻度與邊框，不做文字；在色底上以該色的 ink 濃淡調出次級文字，不用灰。",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Rule",
+        "body": "The Tabular Rule. 任何會跳動的數字（音高讀數、音量、刻度、百分比）一律 tabular-nums，讀數改變時不推擠版面。",
+        "section": "typography"
+      },
+      {
+        "name": "The Caps-and-Tracking Rule",
+        "body": "The Caps-and-Tracking Rule. 拉丁標籤全大寫、字距 ≥0.04em（wordmark 0.16em、group 標籤 0.2em）；中文標題用字重 700＋0.14em 字距取得同一種刻印感，不靠放大字級。字距全程為正，不使用負字距。",
+        "section": "typography"
+      },
+      {
+        "name": "The One-Rail Rule",
+        "body": "The One-Rail Rule. 所有與「目前移調量」有關的表現（刻度、折角旗、切格、讀數）都掛在同一條軌、同一條定位式上；不另開第二個滑桿、不用第二個進度表示。",
+        "section": "layout"
+      },
+      {
+        "name": "The Hairline Rule",
+        "body": "The Hairline Rule. 分隔一律 1px 髮絲線，宣告層級只用 border 或陰影其一。陰影只准給有實體的零件（旗、針、tooltip），一律偏移＋柔化；不做裝飾性光暈、不做零偏移色暈、不做硬偏移方塊陰影。",
+        "section": "elevation"
+      },
+      {
+        "name": "The Mark Rule",
+        "body": "The Mark Rule. 狀態由記號＋文案雙重表達，永不以色相分類：實心＝live、虛線＝pending、grease 叉＝cut／無效、打孔角＝locked、反白＝selected／live。",
+        "section": "shapes"
+      },
+      {
+        "name": "The Perforation Rule",
+        "body": "The Perforation Rule. repeating gradients 只用來畫這個世界自己的量測與膠片幾何——半音刻度、格距分隔、膠片打孔、撕齒孔列（finish review 已認可其為世界原生主幾何）。它們是量測工具與材料邊緣，不是裝飾條紋。",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do 用記號＋繁中文案雙重表達狀態：實心＝live、虛線＝pending、grease 叉＝cut／invalid、打孔角＝locked、反白＝selected／live（**The Mark Rule**）。",
+      "Do 只用 grain orange #ff5a1f 一種彩色，並讓它維持稀缺（**The Single-Ink Rule**）；hover 深化到 #d94712，pressed 用 translateY(1px)。",
+      "Do 把緊急／生效中的內容放進打孔白窗（#f2f2f2 底＋#0a0a0a 字）（**The Punched-Window Rule**）。",
+      "Do 讓 text-2（#a8a8a8）／text-3（#8d8d8d）在 ink／panel 底上保持 ≥4.5:1；色底上的次級文字用該色的 ink 濃淡調，不用灰（**The Contrast Floor**）。",
+      "Do 所有會跳動的數字用 tabular-nums（**The Tabular Rule**）；拉丁標籤全大寫＋字距 ≥0.04em（**The Caps-and-Tracking Rule**）。",
+      "Do 分隔用 1px 髮絲線，圓角用 3px，陰影只給旗／針／tooltip 且帶偏移與柔化（**The Hairline Rule**）。",
+      "Do 用 repeating gradients 畫半音刻度、格距、膠片打孔與撕齒孔列——這個世界的量測工具與材料邊緣（**The Perforation Rule**）。",
+      "Do 把刻度、旗、切格、讀數掛在同一條軌的同一條定位式上（**The One-Rail Rule**）。",
+      "Do 保留瀏覽器表面的設計：選取反白（orange 底＋ink 字）、focus ring（2px orange＋offset）、捲動條（spool thumb＋ink 內框）、tabular 數字。"
+    ],
+    "donts": [
+      "Don't 用色相表達狀態或分類內容——不新增第二種彩色、不做霓虹點綴、不做狀態色燈。",
+      "Don't 對鎖定／停用的卡施加整體 opacity：底色會逼近反白、對比會掉，且「反白＝live」的語意被偷走；改用 charred 底＋打孔角（見 engine card disabled）。",
+      "Don't 做裝飾性深度：零偏移色暈、硬偏移方塊陰影、玻璃模糊都不屬於這個台面；陰影只給有實體的零件。",
+      "Don't 把字級當層級——同一條 strip 內用字重、字距與位置分層（**The Caps-and-Tracking Rule**）；不用負字距。",
+      "Don't 拿波形、等化器、滑桿堆疊或任何通用「音訊擴充功能」預設件當裝飾；本世界的量測件是刻度與打孔。",
+      "Don't 加第二個移調入口（第二個滑桿、第二個進度條）——移調只活在那條軌上（**The One-Rail Rule**）。",
+      "Don't 引入外部影像或系統 display face：質地用本機 grain.png 與向量幾何，字體走 Barlow Condensed＋Noto Sans TC（CDN，離線降級）。"
+    ]
+  }
+}

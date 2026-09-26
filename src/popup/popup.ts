@@ -63,6 +63,12 @@ const connectionText = getElement<HTMLSpanElement>("connectionText");
 const connectionHeadline = getElement<HTMLElement>("connectionHeadline");
 const connectionDetail = getElement<HTMLSpanElement>("connectionDetail");
 const connectBtn = getElement<HTMLButtonElement>("connectBtn");
+const connectLabel = getElement<HTMLSpanElement>("connectLabel");
+const railBand = getElement<HTMLElement>("railBand");
+const youtubePanel = getElement<HTMLElement>("youtubePanel");
+const memoryStrip = getElement<HTMLDivElement>("memoryStrip");
+const memoryText = getElement<HTMLSpanElement>("memoryText");
+const errorText = getElement<HTMLSpanElement>("errorText");
 const bypassBtn = getElement<HTMLButtonElement>("bypassBtn");
 const errorMsg = getElement<HTMLDivElement>("errorMsg");
 const divergenceBanner = getElement<HTMLDivElement>("divergenceBanner");
@@ -89,6 +95,8 @@ const tooltip = getElement<HTMLDivElement>("tooltip");
 let popupState: PopupState = createPopupState();
 /** Resolved settings of the captured page; the snapshot every edit writes back. */
 let pageSettings: ResolvedPageSettings = resolvePageSettings(undefined);
+/** 此頁在儲存層是否有稀疏記錄（頁面記憶是否成立）。 */
+let pageMemorySaved = false;
 let capturedTabTitle: string | null = null;
 let loadedCapturedTabId: number | null = null;
 
@@ -128,6 +136,9 @@ function getPitchStep(): number {
 function updatePitchDisplay(value: number) {
   pitchNumber.textContent = formatSemitones(value);
   pitchSlider.setAttribute("aria-valuetext", `${formatSemitones(value)} semitones`);
+  // 打孔軌的折角旗與打孔格位置（0–1），CSS 以 thumb 寬度內縮對齊 range thumb。
+  const pct = (value - PITCH_MIN) / (PITCH_MAX - PITCH_MIN);
+  railBand.style.setProperty("--pitch-pct", String(pct));
 }
 
 function updateStepButtons() {
@@ -177,24 +188,28 @@ function renderConnectionState() {
     connectionText.textContent = "連線中";
     connectionHeadline.textContent = "正在建立音訊通道";
     connectionDetail.textContent = "請不要關閉目前分頁";
+    connectLabel.textContent = "正在連線…";
     connectBtn.setAttribute("aria-label", "正在連線");
     connectBtn.setAttribute("data-tooltip", "正在連線...");
   } else if (state === "connected") {
     connectionText.textContent = "已連線";
     connectionHeadline.textContent = "音訊通道已建立";
     connectionDetail.textContent = connectionDetailFor();
+    connectLabel.textContent = "斷開連線";
     connectBtn.setAttribute("aria-label", "斷開連線");
     connectBtn.setAttribute("data-tooltip", "斷開連線");
   } else if (state === "lost") {
     connectionText.textContent = "連線中斷";
     connectionHeadline.textContent = "音訊通道已中斷";
     connectionDetail.textContent = "重新連線後可繼續處理";
+    connectLabel.textContent = "重新連線";
     connectBtn.setAttribute("aria-label", "重新連線");
     connectBtn.setAttribute("data-tooltip", "重新連線");
   } else {
     connectionText.textContent = "尚未連線";
     connectionHeadline.textContent = "等待開始";
     connectionDetail.textContent = "按連線開始處理此分頁音訊";
+    connectLabel.textContent = "連線音訊";
     connectBtn.setAttribute("aria-label", "連線音訊");
     connectBtn.setAttribute("data-tooltip", "連線音訊");
   }
@@ -210,10 +225,39 @@ function renderConnectionState() {
 function renderDivergence() {
   const show = showDivergenceBanner(popupState);
   divergenceBanner.hidden = !show;
+  renderMemoryState();
   if (!show) return;
   divergenceText.textContent = capturedTabTitle
     ? `目前音訊來自「${capturedTabTitle}」`
     : "目前音訊來自另一個分頁";
+}
+
+/* ------------------------------------------------------- 頁面記憶記號 */
+
+type MemoryMode = "pending" | "saved" | "none" | "locked";
+
+const MEMORY_COPY: Record<MemoryMode, string> = {
+  pending: "頁面記憶 · 依頁面 URL 分開保存 · 連線後套用",
+  saved: "頁面記憶 · 已套用此頁的設定",
+  none: "頁面記憶 · 尚無記錄 · 變更會依頁面保存",
+  locked: "頁面記憶 · 頁面不同 · 改擷取後套用",
+};
+
+/**
+ * 頁面記憶的狀態記號：連線前尚未套用、連線後依稀疏記錄顯示已套用/無記錄、
+ * 分頁不同時鎖定。文案一律帶 CONTEXT.md 的原詞「頁面記憶」。
+ */
+function renderMemoryState(): void {
+  const mode: MemoryMode =
+    connectionState(popupState) !== "connected"
+      ? "pending"
+      : isSettingsLocked(popupState)
+        ? "locked"
+        : pageMemorySaved
+          ? "saved"
+          : "none";
+  memoryStrip.dataset.memory = mode;
+  memoryText.textContent = MEMORY_COPY[mode];
 }
 
 /* ------------------------------------------------------- divergence watch */
@@ -263,7 +307,7 @@ async function refreshCapturedIdentity() {
 }
 
 function showError(message: string, markLost = false) {
-  errorMsg.textContent = message;
+  errorText.textContent = message;
   errorMsg.classList.add("visible");
   if (markLost) {
     popupState = { ...popupState, captureLost: true };
@@ -272,7 +316,7 @@ function showError(message: string, markLost = false) {
 }
 
 function clearError() {
-  errorMsg.textContent = "";
+  errorText.textContent = "";
   errorMsg.classList.remove("visible");
 }
 
@@ -387,7 +431,10 @@ function getTabInfo(tabId: number): Promise<chrome.tabs.Tab | null> {
 async function loadPageSettings(page: string): Promise<ResolvedPageSettings> {
   const key = pageStorageKey(page);
   const data = await storageGet<Record<string, unknown>>([key]);
-  return resolvePageSettings(data[key]);
+  const record = data[key];
+  pageMemorySaved =
+    typeof record === "object" && record !== null && Object.keys(record).length > 0;
+  return resolvePageSettings(record);
 }
 
 /**
@@ -399,8 +446,14 @@ async function persistPageSettings(): Promise<void> {
   if (!page) return;
   const key = pageStorageKey(page);
   const sparse = diffAgainstDefaults(pageSettings);
-  if (Object.keys(sparse).length === 0) await storageRemove([key]);
-  else await storageSet({ [key]: sparse });
+  if (Object.keys(sparse).length === 0) {
+    await storageRemove([key]);
+    pageMemorySaved = false;
+  } else {
+    await storageSet({ [key]: sparse });
+    pageMemorySaved = true;
+  }
+  renderMemoryState();
 }
 
 async function commitPageSetting(patch: Partial<ResolvedPageSettings>): Promise<boolean> {
@@ -436,6 +489,7 @@ async function seedPageSettings(state: CaptureState): Promise<void> {
   const page = typeof state.page === "string" ? state.page : null;
   if (!page) {
     pageSettings = settingsFromLiveState(state);
+    pageMemorySaved = false;
     return;
   }
   try {
@@ -548,8 +602,21 @@ async function updatePitch(value: number, send = true): Promise<void> {
       updatePitchDisplay(previousValue);
       updateStepButtons();
       await rollbackPageSetting({ pitch: previousValue });
+    } else {
+      flashRailCommit();
     }
   }
+}
+
+/** 提交成功時軌帶一閃——膠帶拍平的一下（reduced-motion 下由 CSS 停用）。 */
+let railCommitTimer: number | null = null;
+function flashRailCommit(): void {
+  railBand.classList.add("is-committed");
+  if (railCommitTimer !== null) window.clearTimeout(railCommitTimer);
+  railCommitTimer = window.setTimeout(() => {
+    railBand.classList.remove("is-committed");
+    railCommitTimer = null;
+  }, 340);
 }
 
 async function getCaptureState(): Promise<CaptureState | null> {
@@ -729,6 +796,8 @@ function deviationText(): string {
 
 function renderYoutubePanel(): void {
   const onYouTube = isYouTubePage(popupState.activePage);
+  // 非 YouTube 頁面不佔位：面板只在 YouTube 出現（其餘文案照舊）。
+  youtubePanel.hidden = !onYouTube;
   if (document.activeElement !== volumeBaseInput) volumeBaseInput.value = String(youtube.base);
 
   if (!onYouTube || !youtube.found || youtube.volume === null) {

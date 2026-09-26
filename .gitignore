@@ -9,3 +9,9 @@ dist.zip
 src/wasm/build/
 .agents/
 skills-lock.json
+
+# impeccable working files: review captures, world reference cards,
+# machine-local config (shipped DESIGN.md / .impeccable/design.json stay tracked)
+.impeccable/review/
+.impeccable/worlds/
+.impeccable/config.local.json
