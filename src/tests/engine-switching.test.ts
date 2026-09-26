@@ -35,7 +35,7 @@ describe("EngineSwitching", () => {
   it("same engine without a connected source only sets gains", async () => {
     const graph = fakeGraph();
     const engine = new EngineSwitching(graph);
-    const result = await engine.setEngine("rubberband", { connected: false, bypass: false, accompanimentMode: false }, vi.fn());
+    const result = await engine.setEngine("rubberband", { connected: false, bypass: false, accompanimentMode: false }, vi.fn(), vi.fn());
     expect(result).toBe(true);
   });
 
@@ -69,7 +69,7 @@ describe("EngineSwitching", () => {
   it("returns false when the requested engine is unavailable", async () => {
     const graph = fakeGraph({ rubberbandReadyStatus: false, rubberbandNode: null });
     const engine = new EngineSwitching(graph);
-    const result = await engine.setEngine("rubberband", { connected: false, bypass: false, accompanimentMode: false }, vi.fn());
+    const result = await engine.setEngine("rubberband", { connected: false, bypass: false, accompanimentMode: false }, vi.fn(), vi.fn());
     expect(result).toBe(false);
   });
 });

@@ -8,6 +8,10 @@ function fakeNode(): AudioWorkletNode {
   return { connect: vi.fn(), disconnect: vi.fn(), port: { postMessage: vi.fn() } } as unknown as AudioWorkletNode;
 }
 
+function fakeSource(): MediaStreamAudioSourceNode {
+  return { connect: vi.fn(), disconnect: vi.fn() } as unknown as MediaStreamAudioSourceNode;
+}
+
 function fakeAccompanimentNodes() {
   return {
     crossover: fakeNode(),
@@ -38,6 +42,7 @@ function makeRouter(overrides: {
     gainANode: fakeNode(),
     gainBNode: fakeNode(),
     requireContext: () => ({ destination: fakeNode(), currentTime: 0 }),
+    requireOutput: () => fakeNode(),
     requirePassthrough: () => fakeNode(),
     disconnectNode: vi.fn(),
   } as unknown as AudioGraph;
@@ -55,13 +60,13 @@ function makeRouter(overrides: {
     nodes: overrides.accompNodes ?? null,
   } as unknown as AccompanimentGraph;
 
-  const getSource = () => overrides.source ?? fakeNode();
+  const getSource = () => overrides.source ?? fakeSource();
   return new GraphRouter(graph, engine, accompaniment, getSource);
 }
 
 describe("GraphRouter", () => {
   it("routes bypass through passthrough", () => {
-    const source = fakeNode();
+    const source = fakeSource();
     const router = makeRouter({ source });
     const result = router.connectSource({ bypass: true, accompanimentMode: false });
     expect(result).toBe(true);
@@ -77,6 +82,7 @@ describe("GraphRouter", () => {
       gainANode: fakeNode(),
       gainBNode: fakeNode(),
       requireContext: () => ({ destination: fakeNode(), currentTime: 0 }),
+      requireOutput: () => fakeNode(),
       requirePassthrough: () => fakeNode(),
       disconnectNode,
     } as unknown as AudioGraph;
@@ -97,5 +103,48 @@ describe("GraphRouter", () => {
     const router = new GraphRouter(graph, engine, accompaniment, () => null);
     router.rewire(true);
     expect(disconnectNode).toHaveBeenCalled();
+  });
+
+  it("ends every route at the output gate instead of ctx.destination", () => {
+    const gate = fakeNode();
+    const destination = fakeNode();
+    const graph = {
+      ready: true,
+      rubberbandReadyStatus: true,
+      rubberbandNode: fakeNode(),
+      passthroughNode: fakeNode(),
+      gainANode: fakeNode(),
+      gainBNode: fakeNode(),
+      requireContext: () => ({ destination, currentTime: 0 }),
+      requireOutput: () => gate,
+      requirePassthrough: () => fakeNode(),
+      disconnectNode: vi.fn(),
+    } as unknown as AudioGraph;
+
+    const engine = {
+      signalsmithAvailable: false,
+      signalsmithNode: null,
+      effectiveEngine: vi.fn().mockReturnValue("rubberband"),
+      setGains: vi.fn(),
+    } as unknown as EngineSwitching;
+
+    const source = fakeSource();
+    const router = new GraphRouter(graph, engine, { ready: false, enabled: false, nodes: null } as unknown as AccompanimentGraph, () => source);
+
+    expect(router.connectSource({ bypass: true, accompanimentMode: false })).toBe(true);
+    expect(router.connectSource({ bypass: false, accompanimentMode: false })).toBe(true);
+
+    const wired = [
+      source,
+      graph.passthroughNode,
+      graph.rubberbandNode,
+      graph.gainBNode,
+    ] as unknown as Array<{ connect: ReturnType<typeof vi.fn> }>;
+    const connectsToGate = wired.some((node) =>
+      node.connect.mock.calls.some((args) => args[0] === gate),
+    );
+
+    expect(connectsToGate).toBe(true);
+    expect(destination.connect).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,7 @@
 // popup controller - connection state, pitch controls, engine selection, and processing mode
+// Capture lifecycle lives in the background service worker (ADR-0004): the popup
+// only requests a capture, edits settings for the captured site, and reports
+// where the audio is actually coming from.
 
 import {
   applyCaptureState,
@@ -8,17 +11,28 @@ import {
   formatSemitones,
   isEngine,
   isProcessingLocked,
+  isSettingsLocked,
   PITCH_MAX,
   PITCH_MIN,
   roundPitch,
   selectEngine,
   setBypass,
+  setActiveTab,
+  setCaptureIdentity,
   setConnected as updateConnectedState,
   setConnecting,
+  showDivergenceBanner,
   type CaptureState,
   type Engine,
   type PopupState,
 } from "./popup-state";
+import {
+  diffAgainstDefaults,
+  originKey,
+  resolveSiteSettings,
+  siteStorageKey,
+  type ResolvedSiteSettings,
+} from "../lib/site-settings";
 
 interface RuntimeResponse {
   ok?: boolean;
@@ -27,12 +41,9 @@ interface RuntimeResponse {
   state?: CaptureState;
 }
 
-type StoredSettings = Partial<CaptureState> & {
-  snapToInteger?: boolean;
-  engine?: Engine;
-};
-
 const ACCOMPANIMENT_COMMAND_TIMEOUT_MS = 25000;
+const HANDOVER_TIMEOUT_MS = 35000;
+const RELEASE_TIMEOUT_MS = 8000;
 
 function getElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -48,6 +59,9 @@ const connectionDetail = getElement<HTMLSpanElement>("connectionDetail");
 const connectBtn = getElement<HTMLButtonElement>("connectBtn");
 const bypassBtn = getElement<HTMLButtonElement>("bypassBtn");
 const errorMsg = getElement<HTMLDivElement>("errorMsg");
+const divergenceBanner = getElement<HTMLDivElement>("divergenceBanner");
+const divergenceText = getElement<HTMLSpanElement>("divergenceText");
+const captureThisTab = getElement<HTMLButtonElement>("captureThisTab");
 const pitchNumber = getElement<HTMLSpanElement>("pitchNumber");
 const pitchSlider = getElement<HTMLInputElement>("pitchSlider");
 const pitchDown = getElement<HTMLButtonElement>("pitchDown");
@@ -60,7 +74,11 @@ const engineSignalsmith = getElement<HTMLButtonElement>("engineSignalsmith");
 const engineRubberband = getElement<HTMLButtonElement>("engineRubberband");
 const tooltip = getElement<HTMLDivElement>("tooltip");
 
-let popupState = createPopupState();
+let popupState: PopupState = createPopupState();
+/** Resolved settings of the captured site; the snapshot every edit writes back. */
+let siteSettings: ResolvedSiteSettings = resolveSiteSettings(undefined);
+let capturedTabTitle: string | null = null;
+let loadedCapturedTabId: number | null = null;
 
 function getPitch(): number {
   const value = Number.parseFloat(pitchSlider.value);
@@ -107,6 +125,13 @@ function refreshControlAvailability() {
   updateBypassButtonState();
 }
 
+function connectionDetailFor(): string {
+  if (popupState.connected && isSettingsLocked(popupState)) return "目前分頁與擷取分頁的網站不同";
+  if (popupState.connected && showDivergenceBanner(popupState)) return "音訊來自另一個分頁";
+  if (popupState.connected) return "目前分頁音訊正在處理";
+  return "開啟分頁音訊後會自動連線";
+}
+
 function renderConnectionState() {
   const state = connectionState(popupState);
   body.dataset.connectionState = state;
@@ -120,7 +145,7 @@ function renderConnectionState() {
   } else if (state === "connected") {
     connectionText.textContent = "已連線";
     connectionHeadline.textContent = "音訊通道已建立";
-    connectionDetail.textContent = "目前分頁音訊正在處理";
+    connectionDetail.textContent = connectionDetailFor();
     connectBtn.setAttribute("aria-label", "斷開連線");
     connectBtn.setAttribute("data-tooltip", "斷開連線");
   } else if (state === "lost") {
@@ -140,6 +165,17 @@ function renderConnectionState() {
   connectBtn.disabled = popupState.connecting;
   connectBtn.setAttribute("aria-busy", String(popupState.connecting));
   refreshControlAvailability();
+  renderDivergence();
+}
+
+/** The audio can belong to another tab; say so and offer a re-capture. */
+function renderDivergence() {
+  const show = showDivergenceBanner(popupState);
+  divergenceBanner.hidden = !show;
+  if (!show) return;
+  divergenceText.textContent = capturedTabTitle
+    ? `目前音訊來自「${capturedTabTitle}」`
+    : "目前音訊來自另一個分頁";
 }
 
 function showError(message: string, markLost = false) {
@@ -234,16 +270,103 @@ function storageSet(values: Record<string, unknown>): Promise<void> {
   });
 }
 
-async function getStoredSettings(): Promise<StoredSettings> {
-  return storageGet<StoredSettings>([
-    "connected",
-    "pitch",
-    "bypass",
-    "preserveFormants",
-    "accompanimentMode",
-    "snapToInteger",
-    "engine",
-  ]);
+function storageRemove(keys: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.remove(keys, () => {
+      const err = chrome.runtime.lastError;
+      if (err) reject(new Error(err.message));
+      else resolve();
+    });
+  });
+}
+
+function queryActiveTab(): Promise<chrome.tabs.Tab | null> {
+  return new Promise((resolve) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      void chrome.runtime.lastError;
+      resolve(tabs[0] ?? null);
+    });
+  });
+}
+
+function getTabInfo(tabId: number): Promise<chrome.tabs.Tab | null> {
+  return new Promise((resolve) => {
+    chrome.tabs.get(tabId, (tab) => {
+      void chrome.runtime.lastError;
+      resolve(tab ?? null);
+    });
+  });
+}
+
+/* ------------------------------------------------------- per-origin memory */
+
+async function loadSiteSettings(origin: string): Promise<ResolvedSiteSettings> {
+  const key = siteStorageKey(origin);
+  const data = await storageGet<Record<string, unknown>>([key]);
+  return resolveSiteSettings(data[key]);
+}
+
+/**
+ * Writes the resolved snapshot back as a sparse record: returning a value to
+ * its default deletes the field, and an all-default record deletes the key.
+ */
+async function persistSiteSettings(): Promise<void> {
+  const origin = popupState.capturedOrigin;
+  if (!origin) return;
+  const key = siteStorageKey(origin);
+  const sparse = diffAgainstDefaults(siteSettings);
+  if (Object.keys(sparse).length === 0) await storageRemove([key]);
+  else await storageSet({ [key]: sparse });
+}
+
+async function commitSiteSetting(patch: Partial<ResolvedSiteSettings>): Promise<boolean> {
+  const previous = siteSettings;
+  siteSettings = { ...siteSettings, ...patch };
+  try {
+    await persistSiteSettings();
+    return true;
+  } catch (err) {
+    siteSettings = previous;
+    showError(err instanceof Error ? err.message : String(err));
+    return false;
+  }
+}
+
+async function rollbackSiteSetting(patch: Partial<ResolvedSiteSettings>): Promise<void> {
+  siteSettings = { ...siteSettings, ...patch };
+  await persistSiteSettings().catch(() => undefined);
+}
+
+function settingsFromLiveState(state: CaptureState): ResolvedSiteSettings {
+  return resolveSiteSettings({
+    pitch: state.pitch,
+    bypass: state.bypass,
+    preserveFormants: state.preserveFormants,
+    accompanimentMode: state.accompanimentMode,
+    engine: isEngine(state.selectedEngine) ? state.selectedEngine : state.engine,
+  });
+}
+
+/** Storage is the memory of record; the live state is only the fallback. */
+async function seedSiteSettings(state: CaptureState): Promise<void> {
+  const origin = typeof state.origin === "string" ? state.origin : null;
+  if (!origin) {
+    siteSettings = settingsFromLiveState(state);
+    return;
+  }
+  try {
+    siteSettings = await loadSiteSettings(origin);
+  } catch {
+    siteSettings = settingsFromLiveState(state);
+  }
+}
+
+async function refreshCapturedTabTitle(): Promise<void> {
+  const tabId = popupState.capturedTabId;
+  if (tabId === loadedCapturedTabId) return;
+  loadedCapturedTabId = tabId;
+  capturedTabTitle = tabId === null ? null : ((await getTabInfo(tabId))?.title ?? null);
+  renderDivergence();
 }
 
 function getRouteLabel(route: string | null): string {
@@ -290,16 +413,15 @@ function applySnap(snap: boolean) {
   updateStepButtons();
 }
 
-function applyStoredUi(data: StoredSettings) {
-  const pitch = typeof data.pitch === "number" ? clampPitch(data.pitch) : 0;
+function applySiteSettings(settings: ResolvedSiteSettings) {
+  const pitch = clampPitch(settings.pitch);
   pitchSlider.value = String(pitch);
   updatePitchDisplay(pitch);
 
-  popupState = setBypass(popupState, data.bypass === true);
-  applySnap(data.snapToInteger !== false);
-  formantCheckbox.checked = data.preserveFormants === true;
-  accompanimentCheckbox.checked = data.accompanimentMode === true;
-  popupState = selectEngine(popupState, isEngine(data.engine) ? data.engine : "rubberband");
+  popupState = setBypass(popupState, settings.bypass);
+  formantCheckbox.checked = settings.preserveFormants;
+  accompanimentCheckbox.checked = settings.accompanimentMode;
+  popupState = selectEngine(popupState, settings.engine);
 
   renderEngineState();
   updateBypassButtonState();
@@ -318,32 +440,7 @@ function applyLiveState(state: CaptureState) {
   renderEngineState();
   updateBypassButtonState();
   renderConnectionState();
-}
-
-async function restoreStoredSettings(): Promise<void> {
-  const stored = await getStoredSettings();
-  const commands: Array<Record<string, unknown>> = [];
-
-  if (typeof stored.pitch === "number") {
-    commands.push({ type: "SET_PITCH", value: { semitones: clampPitch(stored.pitch) } });
-  }
-  commands.push({ type: "SET_BYPASS", value: { active: stored.bypass === true } });
-  commands.push({ type: "SET_FORMANTS", value: { preserve: stored.preserveFormants === true } });
-  if (isEngine(stored.engine) && stored.accompanimentMode !== true) {
-    commands.push({ type: "SET_ENGINE", engine: stored.engine });
-  }
-  commands.push({ type: "SET_ACCOMPANIMENT", value: { enabled: stored.accompanimentMode === true } });
-
-  for (const command of commands) {
-    const response = await sendMessage<RuntimeResponse>(
-      command,
-      0,
-      command.type === "SET_ACCOMPANIMENT" ? ACCOMPANIMENT_COMMAND_TIMEOUT_MS : 4000,
-    );
-    if (response?.ok !== true) {
-      throw new Error(response?.error ?? "Unable to restore audio settings");
-    }
-  }
+  void refreshCapturedTabTitle();
 }
 
 async function updatePitch(value: number, send = true): Promise<void> {
@@ -352,7 +449,13 @@ async function updatePitch(value: number, send = true): Promise<void> {
   pitchSlider.value = String(nextValue);
   updatePitchDisplay(nextValue);
   updateStepButtons();
-  await storageSet({ pitch: nextValue });
+
+  if (!(await commitSiteSetting({ pitch: nextValue }))) {
+    pitchSlider.value = String(previousValue);
+    updatePitchDisplay(previousValue);
+    updateStepButtons();
+    return;
+  }
 
   if (send && !isProcessingLocked(popupState)) {
     const ok = await sendSafe({ type: "SET_PITCH", value: { semitones: nextValue } }, false);
@@ -360,26 +463,13 @@ async function updatePitch(value: number, send = true): Promise<void> {
       pitchSlider.value = String(previousValue);
       updatePitchDisplay(previousValue);
       updateStepButtons();
-      await storageSet({ pitch: previousValue });
+      await rollbackSiteSetting({ pitch: previousValue });
     }
   }
 }
 
-async function ensureOffscreen(): Promise<void> {
-  const existingContexts = await chrome.runtime.getContexts({
-    contextTypes: ["OFFSCREEN_DOCUMENT"],
-  });
-  if (existingContexts.length > 0) return;
-
-  await chrome.offscreen.createDocument({
-    url: "offscreen.html",
-    reasons: ["USER_MEDIA" as chrome.offscreen.Reason, "AUDIO_PLAYBACK" as chrome.offscreen.Reason],
-    justification: "Tab audio capture and processed AudioWorklet playback",
-  });
-}
-
 async function getCaptureState(): Promise<CaptureState | null> {
-  const response = await sendMessage<{ ok?: boolean; ready?: boolean; state?: CaptureState; error?: string }>({ type: "GET_STATE" });
+  const response = await sendMessage<RuntimeResponse>({ type: "GET_STATE" });
   if (response?.ok && response.state) return response.state;
   return null;
 }
@@ -391,6 +481,10 @@ async function refreshRouteState(): Promise<void> {
   renderEngineState();
 }
 
+/**
+ * Asks the service worker to move the capture onto the active tab. The worker
+ * owns the stream, so the popup never sends START/STOP_CAPTURE itself.
+ */
 async function connectCurrentTab(): Promise<boolean> {
   if (popupState.connecting) return false;
   popupState = setConnecting(popupState, true);
@@ -398,31 +492,41 @@ async function connectCurrentTab(): Promise<boolean> {
   clearError();
 
   try {
-    await ensureOffscreen();
-
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) {
+    const tab = await queryActiveTab();
+    if (tab?.id === undefined) {
       showError("找不到目前分頁");
       return false;
     }
 
-    const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
-    const response = await sendMessage<RuntimeResponse>({ type: "START_CAPTURE", streamId });
+    const response = await sendMessage<RuntimeResponse>(
+      { type: "REQUEST_CAPTURE", tabId: tab.id },
+      0,
+      HANDOVER_TIMEOUT_MS,
+    );
     if (response?.ok !== true) {
       showError(response?.error ?? "Unable to start capture");
       return false;
     }
 
+    loadedCapturedTabId = null;
+    capturedTabTitle = null;
     setConnected(true);
-    await storageSet({ connected: true });
-    try {
-      await restoreStoredSettings();
-    } catch (err) {
-      showError(err instanceof Error ? err.message : String(err));
-    }
-
     const state = await getCaptureState();
-    if (state) applyLiveState(state);
+    if (state) {
+      applyLiveState(state);
+      await seedSiteSettings(state);
+    } else {
+      // State is briefly unavailable right after a handover: still attribute
+      // later edits to the site we just captured.
+      const origin = originKey(tab.url);
+      popupState = setActiveTab(popupState, { id: tab.id, origin });
+      if (origin) {
+        popupState = setCaptureIdentity(popupState, { id: tab.id, origin });
+        siteSettings = await loadSiteSettings(origin).catch(() => siteSettings);
+      }
+      void refreshCapturedTabTitle();
+    }
+    renderDivergence();
     return true;
   } catch (err) {
     showError(err instanceof Error ? err.message : String(err));
@@ -440,14 +544,15 @@ async function disconnectCapture(): Promise<boolean> {
   clearError();
 
   try {
-    const response = await sendMessage<RuntimeResponse>({ type: "STOP_CAPTURE" });
+    const response = await sendMessage<RuntimeResponse>({ type: "RELEASE_CAPTURE" }, 0, RELEASE_TIMEOUT_MS);
     if (response?.ok !== true) {
       showError(response?.error ?? "Unable to stop capture");
       return false;
     }
     popupState = { ...popupState, captureLost: false };
     setConnected(false);
-    await storageSet({ connected: false });
+    loadedCapturedTabId = null;
+    capturedTabTitle = null;
     return true;
   } catch (err) {
     showError(err instanceof Error ? err.message : String(err));
@@ -456,16 +561,6 @@ async function disconnectCapture(): Promise<boolean> {
     popupState = setConnecting(popupState, false);
     renderConnectionState();
   }
-}
-
-async function syncConnectionState(): Promise<CaptureState | null> {
-  const response = await sendMessage<{ ok?: boolean; ready?: boolean; state?: CaptureState; error?: string }>({ type: "GET_STATE" });
-  if (!response?.ok || !response.state || response.ready === false) return null;
-
-  applyLiveState(response.state);
-  popupState = updateConnectedState(popupState, response.state.connected);
-  await storageSet({ connected: response.state.connected });
-  return response.state;
 }
 
 /* Tooltip handling */
@@ -546,27 +641,21 @@ snapCheckbox.addEventListener("change", () => {
 formantCheckbox.addEventListener("change", async () => {
   if (isProcessingLocked(popupState)) return;
   const preserve = formantCheckbox.checked;
-  try {
-    await storageSet({ preserveFormants: preserve });
-  } catch (err) {
-    showError(err instanceof Error ? err.message : String(err));
+  if (!(await commitSiteSetting({ preserveFormants: preserve }))) {
     formantCheckbox.checked = !preserve;
     return;
   }
 
   if (!(await sendSafe({ type: "SET_FORMANTS", value: { preserve } }))) {
     formantCheckbox.checked = !preserve;
-    await storageSet({ preserveFormants: !preserve }).catch(() => undefined);
+    await rollbackSiteSetting({ preserveFormants: !preserve });
   }
 });
 
 accompanimentCheckbox.addEventListener("change", async () => {
   if (isProcessingLocked(popupState)) return;
   const enabled = accompanimentCheckbox.checked;
-  try {
-    await storageSet({ accompanimentMode: enabled });
-  } catch (err) {
-    showError(err instanceof Error ? err.message : String(err));
+  if (!(await commitSiteSetting({ accompanimentMode: enabled }))) {
     accompanimentCheckbox.checked = !enabled;
     return;
   }
@@ -576,7 +665,7 @@ accompanimentCheckbox.addEventListener("change", async () => {
 
   if (!(await sendSafe({ type: "SET_ACCOMPANIMENT", value: { enabled } }, true, ACCOMPANIMENT_COMMAND_TIMEOUT_MS))) {
     accompanimentCheckbox.checked = !enabled;
-    await storageSet({ accompanimentMode: !enabled }).catch(() => undefined);
+    await rollbackSiteSetting({ accompanimentMode: !enabled });
     renderEngineState();
     refreshControlAvailability();
   } else {
@@ -592,18 +681,34 @@ connectBtn.addEventListener("click", async () => {
   }
 });
 
+captureThisTab.addEventListener("click", async () => {
+  clearError();
+  const ok = await connectCurrentTab();
+  if (ok) {
+    loadedCapturedTabId = null;
+    const state = await getCaptureState();
+    if (state) applyLiveState(state);
+    renderDivergence();
+  }
+});
+
 bypassBtn.addEventListener("click", async () => {
   // Allow bypass toggle even when bypassed (but not when disconnected/connecting/lost)
   if (isProcessingLocked(popupState)) return;
   const previousBypass = popupState.bypass;
   popupState = setBypass(popupState, !previousBypass);
   updateBypassButtonState();
-  await storageSet({ bypass: popupState.bypass }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
+
+  if (!(await commitSiteSetting({ bypass: popupState.bypass }))) {
+    popupState = setBypass(popupState, previousBypass);
+    updateBypassButtonState();
+    return;
+  }
 
   if (!(await sendSafe({ type: "SET_BYPASS", value: { active: popupState.bypass } }))) {
     popupState = setBypass(popupState, previousBypass);
     updateBypassButtonState();
-    await storageSet({ bypass: previousBypass }).catch(() => undefined);
+    await rollbackSiteSetting({ bypass: previousBypass });
   } else {
     await refreshRouteState();
   }
@@ -629,85 +734,60 @@ pitchReset.addEventListener("click", () => {
   void updatePitch(0, true).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
 });
 
-engineSignalsmith.addEventListener("click", async () => {
+async function selectEngineFromUi(engine: Engine): Promise<void> {
   if (isProcessingLocked(popupState)) return;
   const previousEngine = popupState.selectedEngine;
-  popupState = selectEngine(popupState, "signalsmith");
+  popupState = selectEngine(popupState, engine);
   renderEngineState();
   refreshControlAvailability();
-  await storageSet({ engine: popupState.selectedEngine }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
 
-  if (!(await sendSafe({ type: "SET_ENGINE", engine: "signalsmith" }))) {
+  if (!(await commitSiteSetting({ engine }))) {
     popupState = selectEngine(popupState, previousEngine);
     renderEngineState();
     refreshControlAvailability();
-    await storageSet({ engine: popupState.selectedEngine }).catch(() => undefined);
-  } else {
-    await refreshRouteState();
+    return;
   }
-});
 
-engineRubberband.addEventListener("click", async () => {
-  if (isProcessingLocked(popupState)) return;
-  const previousEngine = popupState.selectedEngine;
-  popupState = selectEngine(popupState, "rubberband");
-  renderEngineState();
-  refreshControlAvailability();
-  await storageSet({ engine: popupState.selectedEngine }).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
-
-  if (!(await sendSafe({ type: "SET_ENGINE", engine: "rubberband" }))) {
+  if (!(await sendSafe({ type: "SET_ENGINE", engine }))) {
     popupState = selectEngine(popupState, previousEngine);
     renderEngineState();
     refreshControlAvailability();
-    await storageSet({ engine: popupState.selectedEngine }).catch(() => undefined);
+    await rollbackSiteSetting({ engine: previousEngine });
   } else {
     await refreshRouteState();
   }
-});
+}
 
-chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-  const title = tabs[0]?.title ?? "No active tab";
-  tabTitle.textContent = title;
-  tabTitle.title = title;
-});
+engineSignalsmith.addEventListener("click", () => void selectEngineFromUi("signalsmith"));
+engineRubberband.addEventListener("click", () => void selectEngineFromUi("rubberband"));
 
 async function initializePopup() {
-  let stored: StoredSettings = {};
+  const activeTab = await queryActiveTab();
+  popupState = setActiveTab(popupState, { id: activeTab?.id, origin: originKey(activeTab?.url) });
+  const title = activeTab?.title ?? "No active tab";
+  tabTitle.textContent = title;
+  tabTitle.title = title;
+
   try {
-    stored = await getStoredSettings();
+    const global = await storageGet<{ snapToInteger?: boolean }>(["snapToInteger"]);
+    applySnap(global.snapToInteger !== false);
   } catch (err) {
     showError(err instanceof Error ? err.message : String(err));
   }
-  applyStoredUi(stored);
 
-  let liveState: CaptureState | null = null;
-  try {
-    await ensureOffscreen();
-    liveState = await syncConnectionState();
-  } catch (err) {
-    console.warn("[popup] State synchronization failed:", err);
-  }
-
-  if (liveState) {
+  const liveState = await getCaptureState();
+  if (liveState?.connected || liveState?.captureLost) {
     applyLiveState(liveState);
-    setConnected(liveState.connected);
+    setConnected(liveState.connected === true);
+    await seedSiteSettings(liveState);
   } else {
-    let storedConnected: boolean | null = null;
-    try {
-      const currentStored = await getStoredSettings();
-      storedConnected = typeof currentStored.connected === "boolean" ? currentStored.connected : null;
-    } catch (err) {
-      console.warn("[popup] Stored connection state unavailable:", err);
-    }
-
-    if (storedConnected === false) {
-      setConnected(false);
-    } else {
-      await connectCurrentTab();
-    }
+    setConnected(false);
+    // Opening the popup is the one gesture that grants tab capture, so a fresh
+    // session connects the active tab automatically (ADR-0004).
+    await connectCurrentTab();
   }
 
-  // Attach tooltip listeners after DOM is ready
+  renderConnectionState();
   attachTooltipListeners();
 }
 

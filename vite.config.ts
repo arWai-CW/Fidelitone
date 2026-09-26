@@ -98,6 +98,13 @@ export default defineConfig({
       input: {
         popup: resolve(__dirname, "src/popup/popup.html"),
         offscreen: resolve(__dirname, "src/offscreen/offscreen.html"),
+        background: resolve(__dirname, "src/background/index.ts"),
+      },
+      output: {
+        // The manifest references the service worker by a fixed name, so the
+        // background chunk must not get a content hash.
+        entryFileNames: (chunk) =>
+          chunk.name === "background" ? "background.js" : "assets/[name]-[hash].js",
       },
     },
   },

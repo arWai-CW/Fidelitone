@@ -6,6 +6,7 @@ import {
 } from "../lib/dsp/rubberband-live-shifter";
 import { semitonesToPitchScale } from "../lib/dsp/math";
 import { postWorkletMessage } from "../lib/dsp/worklet-message";
+import { OUTPUT_GATE_MS, delayGate, scheduleGate } from "./output-gate";
 
 let rubberbandModuleLoaded = false;
 let passthroughModuleLoaded = false;
@@ -26,6 +27,8 @@ export class AudioGraph {
   private liveShifter: RubberBandLiveShifter | null = null;
   private gainA: GainNode | null = null;
   private gainB: GainNode | null = null;
+  private outputGain: GainNode | null = null;
+  private disposeGateWait: (() => void) | null = null;
   private rbBlockSize = 512;
   private rbChannels = 2;
   private rubberbandReady = false;
@@ -69,9 +72,41 @@ export class AudioGraph {
     return this.gainB;
   }
 
+  /** Master gate every path ends at, between the graph and ctx.destination. */
+  get outputNode(): GainNode | null {
+    return this.outputGain;
+  }
+
   requireContext(): AudioContext {
     if (!this.ctx) throw new Error("Audio graph is not ready");
     return this.ctx;
+  }
+
+  requireOutput(): GainNode {
+    if (!this.outputGain) throw new Error("Output gate is not ready");
+    return this.outputGain;
+  }
+
+  /**
+   * Ramps the output gate. Resolves when the ramp has actually taken effect,
+   * so a handover can order "mute → change → unmute" precisely.
+   */
+  async fadeOutput(to: 0 | 1, durationMs = OUTPUT_GATE_MS): Promise<void> {
+    const target = this.outputGain && this.ctx ? { param: this.outputGain.gain, currentTime: this.ctx.currentTime } : null;
+    if (!scheduleGate(target, to, durationMs)) return;
+    await delayGate(durationMs, (dispose) => {
+      const previous = this.disposeGateWait;
+      this.disposeGateWait = dispose;
+      previous?.();
+    });
+  }
+
+  fadeOut(durationMs = OUTPUT_GATE_MS): Promise<void> {
+    return this.fadeOutput(0, durationMs);
+  }
+
+  fadeIn(durationMs = OUTPUT_GATE_MS): Promise<void> {
+    return this.fadeOutput(1, durationMs);
   }
 
   requirePassthrough(): AudioWorkletNode {
@@ -143,12 +178,16 @@ export class AudioGraph {
     disconnectNode(this.rbNode);
     disconnectNode(this.gainA);
     disconnectNode(this.gainB);
+    disconnectNode(this.outputGain);
     this.deleteLiveShifter();
 
     this.passthrough = null;
     this.rbNode = null;
     this.gainA = null;
     this.gainB = null;
+    this.disposeGateWait?.();
+    this.disposeGateWait = null;
+    this.outputGain = null;
     this.rubberbandReady = false;
     this.graphReady = false;
     this.graphInitializationPromise = null;
@@ -175,6 +214,8 @@ export class AudioGraph {
       this.passthrough = new AudioWorkletNode(this.ctx, "passthrough");
       this.gainA = this.ctx.createGain();
       this.gainB = this.ctx.createGain();
+      this.outputGain = this.ctx.createGain();
+      this.outputGain.gain.value = 1;
 
       if (wasmOk) {
         const rbInit = this.initLiveShifter(this.ctx.sampleRate, 2, semitonesToPitchScale(semitones), preserveFormants);

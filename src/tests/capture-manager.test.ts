@@ -31,6 +31,7 @@ describe("CaptureManager", () => {
     connectSource: vi.fn().mockReturnValue(true),
     applyCurrentPitch: vi.fn(),
     teardownGraph: vi.fn().mockResolvedValue(undefined),
+    emitCaptureEvent: vi.fn(),
   };
 
   beforeEach(() => {
@@ -62,7 +63,7 @@ describe("CaptureManager", () => {
     navigator.mediaDevices.getUserMedia = vi.fn().mockResolvedValue(stream);
 
     const manager = new CaptureManager(graph, accomp, callbacks);
-    accomp.enabled = true;
+    (accomp as unknown as { enabled: boolean }).enabled = true;
     await expect(manager.start("stream-id", 0, false)).rejects.toThrow();
     expect(accomp.deactivate).toHaveBeenCalled();
   });
@@ -89,5 +90,64 @@ describe("CaptureManager", () => {
     const manager = new CaptureManager(graph, accomp, callbacks);
     const result = manager.handleCaptureEnded({} as MediaStream);
     expect(result).toBe(false);
+  });
+
+  it("reports capture identity and liveness through events", async () => {
+    const stream = { getTracks: () => [{ addEventListener: vi.fn(), stop: vi.fn() }] } as unknown as MediaStream;
+    navigator.mediaDevices.getUserMedia = vi.fn().mockResolvedValue(stream);
+
+    const manager = new CaptureManager(graph, accomp, callbacks);
+    await manager.start("stream-id", 0, false, {
+      tabId: 9,
+      origin: "https://www.youtube.com",
+    });
+
+    expect(manager.tabId).toBe(9);
+    expect(manager.origin).toBe("https://www.youtube.com");
+    expect(callbacks.emitCaptureEvent).toHaveBeenLastCalledWith({
+      connected: true,
+      captureLost: false,
+      tabId: 9,
+      origin: "https://www.youtube.com",
+    });
+
+    manager.handleCaptureEnded(stream);
+    expect(callbacks.emitCaptureEvent).toHaveBeenLastCalledWith({
+      connected: false,
+      captureLost: true,
+      tabId: 9,
+      origin: "https://www.youtube.com",
+    });
+
+    manager.stop();
+    expect(callbacks.emitCaptureEvent).toHaveBeenLastCalledWith({
+      connected: false,
+      captureLost: false,
+      tabId: null,
+      origin: null,
+    });
+  });
+
+  it("restores the previous target when a handover fails", async () => {
+    const stream = { getTracks: () => [{ addEventListener: vi.fn(), stop: vi.fn() }] } as unknown as MediaStream;
+    navigator.mediaDevices.getUserMedia = vi.fn().mockResolvedValue(stream);
+
+    const manager = new CaptureManager(graph, accomp, callbacks);
+    await manager.start("stream-id", 0, false, { tabId: 1, origin: "https://a.com" });
+
+    graph.createMediaStreamSource = vi.fn(() => {
+      throw new Error("graph rejected the stream");
+    }) as unknown as AudioGraph["createMediaStreamSource"];
+    navigator.mediaDevices.getUserMedia = vi.fn().mockResolvedValue({
+      getTracks: () => [{ addEventListener: vi.fn(), stop: vi.fn() }],
+    } as unknown as MediaStream);
+
+    await expect(
+      manager.start("stream-id-2", 0, false, { tabId: 2, origin: "https://b.com" }),
+    ).rejects.toThrow("graph rejected the stream");
+
+    expect(manager.connected).toBe(true);
+    expect(manager.tabId).toBe(1);
+    expect(manager.origin).toBe("https://a.com");
   });
 });

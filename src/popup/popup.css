@@ -736,6 +736,58 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   animation: slide-in-up 0.3s var(--transition-spring);
 }
 
+.divergence-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(224, 180, 92, 0.3);
+  border-radius: var(--radius-lg);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  animation: slide-in-up 0.3s var(--transition-spring);
+}
+
+.divergence-banner[hidden] {
+  display: none;
+}
+
+.divergence-copy {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow-wrap: anywhere;
+}
+
+.divergence-action {
+  flex: none;
+  padding: 6px 10px;
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--warning);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-quick);
+}
+
+.divergence-action:hover {
+  background: var(--warning-soft);
+}
+
+.divergence-action:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 @keyframes slide-in-up {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }

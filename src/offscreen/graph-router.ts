@@ -43,7 +43,7 @@ export class GraphRouter {
 
     if (route.bypass) {
       this.rewire();
-      this.graph.requirePassthrough().connect(this.graph.requireContext().destination);
+      this.graph.requirePassthrough().connect(this.graph.requireOutput());
       source.connect(this.graph.requirePassthrough());
       console.log("[offscreen] Source → passthrough (bypass)");
       return true;
@@ -57,7 +57,7 @@ export class GraphRouter {
     let connected = false;
     if (this.graph.rubberbandNode && this.graph.rubberbandReadyStatus && this.graph.gainBNode) {
       this.graph.rubberbandNode.connect(this.graph.gainBNode);
-      this.graph.gainBNode.connect(this.graph.requireContext().destination);
+      this.graph.gainBNode.connect(this.graph.requireOutput());
       source.connect(this.graph.rubberbandNode);
       connected = true;
       console.log("[offscreen] Source → rbNode → gainB → destination (RubberBand)");
@@ -65,13 +65,13 @@ export class GraphRouter {
     const signalNode = this.engine.signalsmithNode;
     if (signalNode && this.engine.signalsmithAvailable && this.graph.gainANode) {
       signalNode.connect(this.graph.gainANode);
-      this.graph.gainANode.connect(this.graph.requireContext().destination);
+      this.graph.gainANode.connect(this.graph.requireOutput());
       source.connect(signalNode);
       connected = true;
       console.log("[offscreen] Source → signalsmithNode → gainA → destination (Signalsmith)");
     }
     if (!connected) {
-      this.graph.requirePassthrough().connect(this.graph.requireContext().destination);
+      this.graph.requirePassthrough().connect(this.graph.requireOutput());
       source.connect(this.graph.requirePassthrough());
       console.log("[offscreen] Source → passthrough (fallback)");
     } else {
@@ -85,7 +85,7 @@ export class GraphRouter {
     if (!nodes) return false;
     this.rewire();
     if (bypass) {
-      this.graph.requirePassthrough().connect(this.graph.requireContext().destination);
+      this.graph.requirePassthrough().connect(this.graph.requireOutput());
       source.connect(this.graph.requirePassthrough());
       console.log("[offscreen] Source → passthrough (bypass)");
       return true;
@@ -100,7 +100,7 @@ export class GraphRouter {
       nodes.signalsmith.connect(nodes.mixBus);
     }
     nodes.mixBus.connect(nodes.limiter);
-    nodes.limiter.connect(this.graph.requireContext().destination);
+    nodes.limiter.connect(this.graph.requireOutput());
 
     console.log("[offscreen] Source → stereo sum (crossover → lowband resampler + Signalsmith → mixBus → limiter)");
     return true;

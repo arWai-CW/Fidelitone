@@ -1,11 +1,24 @@
 import { OffscreenController as OffscreenControllerInterface } from "./offscreen-messages";
-import { routeFor, type Engine } from "./offscreen-state";
+import {
+  routeFor,
+  type CaptureEvent,
+  type CaptureTarget,
+  type Engine,
+  type SwitchCaptureRequest,
+} from "./offscreen-state";
 import { AudioGraph } from "./audio-graph";
 import { EngineSwitching } from "./engine-switching";
 import { AccompanimentGraph } from "./accompaniment";
 import { CaptureManager } from "./capture-manager";
 import { GraphRouter } from "./graph-router";
+import { TransitionQueue } from "../lib/transition-queue";
 import { semitonesToPitchScale } from "../lib/dsp/math";
+import type { ProcessingSettings } from "../lib/audio-state";
+
+export interface OffscreenControllerOptions {
+  /** Called on every capture state change (connected / lost / identity). */
+  onCaptureEvent?: (event: CaptureEvent) => void;
+}
 
 export class OffscreenController implements OffscreenControllerInterface {
   readonly graph = new AudioGraph();
@@ -18,9 +31,9 @@ export class OffscreenController implements OffscreenControllerInterface {
   private isBypass = false;
   private preserveFormants = false;
   private isAccompanimentMode = false;
-  private transitionQueue = Promise.resolve();
+  private readonly transitions = new TransitionQueue();
 
-  constructor() {
+  constructor(private options: OffscreenControllerOptions = {}) {
     this.capture = new CaptureManager(this.graph, this.accompaniment, {
       ensureGraphReady: (semitones, preserveFormants) =>
         this.graph.ensureReady(semitones, preserveFormants),
@@ -31,6 +44,7 @@ export class OffscreenController implements OffscreenControllerInterface {
         }),
       applyCurrentPitch: () => this.applyCurrentPitch(),
       teardownGraph: (clearCaptureLost) => this.teardownGraph(clearCaptureLost),
+      emitCaptureEvent: (event) => this.options.onCaptureEvent?.(event),
     });
     this.router = new GraphRouter(
       this.graph,
@@ -177,8 +191,40 @@ export class OffscreenController implements OffscreenControllerInterface {
     );
   }
 
-  async startCapture(streamId: string): Promise<void> {
-    await this.capture.start(streamId, this.currentSemitones, this.preserveFormants);
+  /**
+   * ADR-0004: one atomic handover — warm up the slow work while the old tab
+   * still plays, close the output gate, apply the incoming site's settings,
+   * swap the stream, then reopen. A failure anywhere rolls back to the previous
+   * settings and leaves the old capture running.
+   */
+  async switchCapture(request: SwitchCaptureRequest): Promise<void> {
+    const next: ProcessingSettings = request.settings ?? this.currentSettings();
+    const previous = this.currentSettings();
+
+    await this.preWarm(next);
+    await this.graph.fadeOut();
+
+    try {
+      await this.applySettings(next);
+      const target: CaptureTarget = { tabId: request.tabId, origin: request.origin };
+      if (request.streamId) {
+        await this.capture.start(
+          request.streamId,
+          this.currentSemitones,
+          this.preserveFormants,
+          target,
+        );
+      } else {
+        this.capture.setTarget(target);
+      }
+    } catch (err) {
+      await this.restoreSettings(previous);
+      await this.graph.fadeIn();
+      throw err;
+    }
+
+    await this.graph.fadeIn();
+    console.log("[offscreen] Capture →", request.origin, "(tab", request.tabId, ")");
   }
 
   async stopCapture(): Promise<void> {
@@ -207,8 +253,15 @@ export class OffscreenController implements OffscreenControllerInterface {
         }),
         captureLost: this.capture.captureLost,
         engineAvailability: this.engine.availability,
+        tabId: this.capture.tabId,
+        origin: this.capture.origin,
       },
     };
+  }
+
+  /** Serialised execution point for every mutating offscreen message. */
+  runTransition<T>(operation: () => Promise<T>): Promise<T> {
+    return this.transitions.run(operation);
   }
 
   async teardownGraph(clearCaptureLost = true): Promise<void> {
@@ -220,10 +273,75 @@ export class OffscreenController implements OffscreenControllerInterface {
     this.accompaniment.reset();
   }
 
-  private runTransition<T>(operation: () => Promise<T>): Promise<T> {
-    const result = this.transitionQueue.then(operation, operation);
-    this.transitionQueue = result.then(() => undefined, () => undefined);
-    return result;
+  private currentSettings(): ProcessingSettings {
+    return {
+      pitch: this.currentSemitones,
+      bypass: this.isBypass,
+      preserveFormants: this.preserveFormants,
+      accompanimentMode: this.isAccompanimentMode,
+      engine: this.engine.selectedEngine,
+    };
+  }
+
+  /**
+   * Builds the slow pieces (worklets, Signalsmith WASM) before the gate closes.
+   * Neither call touches the audible routing, so the outgoing tab keeps playing.
+   */
+  private async preWarm(settings: ProcessingSettings): Promise<void> {
+    if (settings.accompanimentMode && !this.accompaniment.ready) {
+      await this.accompaniment.ensureEnabled(this.currentSemitones, settings.preserveFormants).catch((err) =>
+        console.warn("[offscreen] Accompaniment pre-warm failed:", err),
+      );
+    }
+    if (settings.engine === "signalsmith" && !this.engine.signalsmithAvailable) {
+      await this.engine.initSignalsmith(settings.pitch, settings.preserveFormants).catch((err) =>
+        console.warn("[offscreen] Signalsmith pre-warm failed:", err),
+      );
+    }
+  }
+
+  private async applySettings(settings: ProcessingSettings): Promise<void> {
+    if (!(await this.setPitch({ semitones: settings.pitch }))) {
+      throw new Error("Unable to apply pitch");
+    }
+    if (!(await this.setFormants({ preserve: settings.preserveFormants }))) {
+      throw new Error("Unable to apply formant option");
+    }
+    if (!(await this.setBypass({ active: settings.bypass }))) {
+      throw new Error("Unable to apply bypass routing");
+    }
+
+    // Availability issues degrade instead of aborting: effectiveEngine() already
+    // falls back, and a missing engine must never block a tab follow.
+    const engine = this.resolveAvailableEngine(settings.engine);
+    if (!(await this.setEngine(engine))) {
+      console.warn("[offscreen] Engine unavailable, keeping", this.engine.selectedEngine);
+    }
+    if (!(await this.setAccompaniment({ enabled: settings.accompanimentMode }))) {
+      console.warn(
+        "[offscreen] Accompaniment unavailable, staying",
+        this.isAccompanimentMode ? "ON" : "OFF",
+      );
+    }
+  }
+
+  private resolveAvailableEngine(requested: Engine): Engine {
+    const availability = this.engine.availability;
+    if (availability[requested]) return requested;
+    const fallback: Engine = requested === "signalsmith" ? "rubberband" : "signalsmith";
+    if (availability[fallback]) {
+      console.warn("[offscreen] Requested engine unavailable, using", fallback);
+      return fallback;
+    }
+    return requested;
+  }
+
+  private async restoreSettings(settings: ProcessingSettings): Promise<void> {
+    try {
+      await this.applySettings(settings);
+    } catch (err) {
+      console.error("[offscreen] Settings rollback failed:", err);
+    }
   }
 
   private applyCurrentPitch(): void {

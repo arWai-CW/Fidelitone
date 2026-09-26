@@ -1,4 +1,4 @@
-import type { CaptureState as AudioCaptureState, Engine as AudioEngine } from "../lib/audio-state";
+import type { CaptureState as AudioCaptureState, Engine as AudioEngine, ProcessingSettings } from "../lib/audio-state";
 
 export type CaptureState = AudioCaptureState;
 export type Engine = AudioEngine;
@@ -16,4 +16,30 @@ export function routeFor(options: {
   if (options.bypass) return "bypass";
   if (options.accompanimentMode && options.accompanimentReady) return "accompaniment";
   return options.engine;
+}
+
+/**
+ * Emitted by the offscreen document whenever capture identity or liveness
+ * changes, so the service worker can drive the badge without a popup open.
+ */
+export interface CaptureEvent {
+  connected: boolean;
+  captureLost: boolean;
+  tabId: number | null;
+  origin: string | null;
+}
+
+/** Identity of the tab the capture belongs to. */
+export interface CaptureTarget {
+  tabId: number | null;
+  origin: string | null;
+}
+
+/** ADR-0004 atomic handover: settings first, then (optionally) the stream. */
+export interface SwitchCaptureRequest {
+  /** null keeps the current stream and only re-applies settings/identity. */
+  streamId: string | null;
+  tabId: number;
+  origin: string;
+  settings: ProcessingSettings | null;
 }

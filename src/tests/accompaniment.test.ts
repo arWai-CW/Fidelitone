@@ -51,12 +51,22 @@ function fakeGraph(): AudioGraph {
 }
 
 function fakeEngine(overrides: Partial<EngineSwitching> = {}): EngineSwitching {
-  const engine = {
-    signalsmithAvailable: false,
+  // Getters proxy a mutable cell: the real EngineSwitching exposes these as
+  // read-only properties, so the mock has to model the same shape.
+  const internal: { signalsmithNode: AudioWorkletNode | null; signalsmithAvailable: boolean } = {
     signalsmithNode: null,
-    initSignalsmith: vi.fn().mockImplementation(async function (this: typeof engine) {
-      this.signalsmithNode = {} as EngineSwitching["signalsmithNode"];
-      this.signalsmithAvailable = true;
+    signalsmithAvailable: false,
+  };
+  const engine = {
+    get signalsmithAvailable(): boolean {
+      return internal.signalsmithAvailable;
+    },
+    get signalsmithNode(): AudioWorkletNode | null {
+      return internal.signalsmithNode;
+    },
+    initSignalsmith: vi.fn(async () => {
+      internal.signalsmithNode = {} as AudioWorkletNode;
+      internal.signalsmithAvailable = true;
       return true;
     }),
     dryPitch: vi.fn(),

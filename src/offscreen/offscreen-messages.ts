@@ -1,4 +1,5 @@
-import type { CaptureState, Engine } from "./offscreen-state";
+import type { CaptureState, Engine, SwitchCaptureRequest } from "./offscreen-state";
+import { resolveSiteSettings } from "../lib/site-settings";
 
 export interface OffscreenController {
   setPitch(value: { semitones: number }): Promise<boolean>;
@@ -6,9 +7,11 @@ export interface OffscreenController {
   setFormants(value: { preserve: boolean }): Promise<boolean>;
   setAccompaniment(value: { enabled: boolean }): Promise<boolean>;
   setEngine(engine: Engine): Promise<boolean>;
-  startCapture(streamId: string): Promise<void>;
+  switchCapture(request: SwitchCaptureRequest): Promise<void>;
   stopCapture(): Promise<void>;
   getState(): { ready: boolean; state: CaptureState };
+  /** Serialises this message behind any transition already in flight. */
+  runTransition<T>(operation: () => Promise<T>): Promise<T>;
 }
 
 export interface OffscreenMessageResponse {
@@ -20,6 +23,23 @@ export interface OffscreenMessageResponse {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** ADR-0004: handovers are atomic, so only a well-formed payload is accepted. */
+function readSwitchCaptureRequest(msg: Record<string, unknown>): SwitchCaptureRequest | null {
+  const { tabId, origin, streamId, settings } = msg;
+  if (typeof tabId !== "number" || !Number.isInteger(tabId)) return null;
+  if (typeof origin !== "string" || origin.length === 0) return null;
+  if (streamId !== null && streamId !== undefined && typeof streamId !== "string") return null;
+  if (settings !== null && settings !== undefined && typeof settings !== "object") return null;
+
+  return {
+    tabId,
+    origin,
+    streamId: typeof streamId === "string" ? streamId : null,
+    settings:
+      settings === null || settings === undefined ? null : resolveSiteSettings(settings),
+  };
 }
 
 export async function handleOffscreenMessage(
@@ -41,9 +61,13 @@ export async function handleOffscreenMessage(
         return { ok: await controller.setEngine(msg.engine as Engine) };
       case "SET_ACCOMPANIMENT":
         return { ok: await controller.setAccompaniment(msg.value as { enabled: boolean }) };
-      case "START_CAPTURE":
-        await controller.startCapture(msg.streamId as string);
-        return { ok: true };
+      case "SWITCH_CAPTURE": {
+        const request = readSwitchCaptureRequest(msg);
+        if (!request) return { ok: false, error: "Invalid switch request" };
+        await controller.switchCapture(request);
+        const snapshot = controller.getState();
+        return { ok: true, ready: snapshot.ready, state: snapshot.state };
+      }
       case "STOP_CAPTURE":
         await controller.stopCapture();
         return { ok: true };
@@ -59,31 +83,51 @@ export async function handleOffscreenMessage(
   }
 }
 
-const MESSAGE_TYPES = new Set([
+export const MESSAGE_TYPES = new Set([
   "SET_PITCH",
   "SET_BYPASS",
   "SET_FORMANTS",
   "SET_ENGINE",
   "SET_ACCOMPANIMENT",
-  "START_CAPTURE",
+  "SWITCH_CAPTURE",
   "STOP_CAPTURE",
   "GET_STATE",
 ]);
 
-export function registerOffscreenMessages(controller: OffscreenController): void {
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+export type OffscreenMessageListener = (
+  message: unknown,
+  sender: unknown,
+  sendResponse: (response: OffscreenMessageResponse) => void,
+) => boolean;
+
+/**
+ * Every mutating message runs through the controller's transition queue, so the
+ * service worker's handover and the popup's edits can never interleave.
+ * GET_STATE stays outside: a reconcile must answer immediately.
+ */
+export function createOffscreenMessageListener(
+  controller: OffscreenController,
+): OffscreenMessageListener {
+  return (message, _sender, sendResponse) => {
     if (!message || typeof message !== "object") return false;
     const msg = message as Record<string, unknown>;
-    if (!MESSAGE_TYPES.has(String(msg.type))) return false;
-    if (msg.type === "GET_STATE") {
-      const state = controller.getState();
-      sendResponse({ ok: true, ready: state.ready, state: state.state });
+    const type = msg.type;
+    if (typeof type !== "string" || !MESSAGE_TYPES.has(type)) return false;
+
+    if (type === "GET_STATE") {
+      const snapshot = controller.getState();
+      sendResponse({ ok: true, ready: snapshot.ready, state: snapshot.state });
       return false;
     }
 
-    void handleOffscreenMessage(message, controller)
+    controller
+      .runTransition(() => handleOffscreenMessage(message, controller))
       .then(sendResponse)
       .catch((error) => sendResponse({ ok: false, error: errorMessage(error) }));
     return true;
-  });
+  };
+}
+
+export function registerOffscreenMessages(controller: OffscreenController): void {
+  chrome.runtime.onMessage.addListener(createOffscreenMessageListener(controller));
 }
