@@ -50,7 +50,7 @@ string.
 ### From Source
 
 ```bash
-git clone https://github.com/your-username/fidelitone.git
+git clone https://github.com/arWai-CW/fidelitone.git
 cd fidelitone
 npm install
 npm run build
@@ -273,6 +273,8 @@ the code. Start here:
 | [`DESIGN.md`](DESIGN.md) | The popup design system: named rules, a single-ink rule, a contrast floor, and what this design world explicitly rejects. |
 | [`docs/adr/`](docs/adr/) | Seven architecture decision records. |
 | [`docs/runtime-verification.md`](docs/runtime-verification.md) | What was actually run, what passed, and the measured numbers. |
+| [`docs/launch-copy.md`](docs/launch-copy.md) | Show HN and social drafts, plus the reasoning behind the positioning. |
+| [`store/`](store/) | Chrome Web Store listing copy, permission justifications, and 1280×800 screenshots. |
 
 ### Decision records
 
@@ -293,6 +295,10 @@ is not a record of judgement.
 ## License
 
 MIT — see [LICENSE](LICENSE) for full details.
+
+Fidelitone collects nothing and has no server: audio never leaves the browser,
+settings live in `chrome.storage.local`, and the only network request is the
+optional Google Fonts stylesheet. Full detail in [PRIVACY.md](PRIVACY.md).
 
 The one bundled third-party component, **Signalsmith Stretch**, is also MIT
 (Copyright (c) Geraint Luff / Signalsmith Audio):
