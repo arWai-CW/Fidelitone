@@ -197,6 +197,14 @@ const EXCLUSIONS = [
   { test: (p) => p.endsWith(".map"), why: "source map" },
   { test: (p) => p.startsWith("icons/") && p.endsWith(".svg"), why: "source vector; the manifest names the PNG" },
   { test: (p) => p.startsWith("node_modules/"), why: "dependency tree" },
+  // Dotfiles, mostly so a macOS packaging run does not ship `icons/.DS_Store`.
+  // That file is in .gitignore and never committed, but dist/ is built by
+  // copying the working tree rather than from git, so it reaches the archive
+  // anyway — and then the digest stops matching the one the release notes
+  // publish, which is the only claim that ties a download back to a commit.
+  // Matched by name rather than naming .DS_Store, so `._*` and Thumbs.db are
+  // covered too.
+  { test: (p) => posix.basename(p).startsWith("."), why: "dotfile; never part of the extension" },
 ];
 
 const included = [];
