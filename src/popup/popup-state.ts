@@ -49,8 +49,21 @@ export function roundPitch(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-export function formatSemitones(value: number): string {
+/**
+ * Two decimals, always signed. Formatting rather than string-building keeps the
+ * sign, separator, and digit conventions in the language on screen — and for
+ * every locale this ships, `Intl` with `signDisplay: "always"` produces exactly
+ * the ASCII-hyphen form this used to concatenate by hand.
+ */
+export const SEMITONE_FORMAT: Intl.NumberFormatOptions = {
+  signDisplay: "always",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+};
+
+export function formatSemitones(value: number, format?: (value: number) => string): string {
   const rounded = roundPitch(value);
+  if (format) return format(rounded);
   const sign = rounded >= 0 ? "+" : "";
   return `${sign}${rounded.toFixed(2)}`;
 }

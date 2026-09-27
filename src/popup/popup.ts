@@ -14,6 +14,7 @@ import {
   PITCH_MAX,
   PITCH_MIN,
   roundPitch,
+  SEMITONE_FORMAT,
   setBypass,
   setActiveTab,
   setCaptureIdentity,
@@ -36,6 +37,16 @@ import {
   clampVolume,
   volumeDeltaPercent,
 } from "../lib/volume";
+import { createTranslator, detectLocale, type Translator } from "../i18n/catalog";
+import { applyDocumentLanguage, applyStaticMessages } from "../i18n/dom";
+import { DEFAULT_LOCALE } from "../i18n/types";
+
+/**
+ * The popup's only source of user-visible copy. Resolved once at startup: the
+ * popup lives only as long as it is open, so there is nothing to re-resolve.
+ * Starts on the default so that any render before resolution still reads.
+ */
+let t: Translator = createTranslator(DEFAULT_LOCALE);
 
 interface RuntimeResponse {
   ok?: boolean;
@@ -130,9 +141,21 @@ function getPitchStep(): number {
   return snapCheckbox.checked ? 1 : 0.01;
 }
 
+/** One formatter for every number the panel shows, so they cannot disagree. */
+function formatNumber(value: number, options?: Intl.NumberFormatOptions): string {
+  return t.formatNumber(value, options);
+}
+
+function formatSemitonesFor(value: number): string {
+  return formatSemitones(value, (rounded) => formatNumber(rounded, SEMITONE_FORMAT));
+}
+
 function updatePitchDisplay(value: number) {
-  pitchNumber.textContent = formatSemitones(value);
-  pitchSlider.setAttribute("aria-valuetext", `${formatSemitones(value)} semitones`);
+  const shown = formatSemitonesFor(value);
+  pitchNumber.textContent = shown;
+  // `count` lets a locale inflect the unit: English needs "1 semitone", and
+  // Chinese and Japanese do not.
+  pitchSlider.setAttribute("aria-valuetext", t("pitch.valueAriaText", { value: shown, count: roundPitch(value) }));
   // 打孔軌的折角旗與打孔格位置（0–1），CSS 以 thumb 寬度內縮對齊 range thumb。
   const pct = (value - PITCH_MIN) / (PITCH_MAX - PITCH_MIN);
   railBand.style.setProperty("--pitch-pct", String(pct));
@@ -166,11 +189,23 @@ function refreshControlAvailability() {
   renderYoutubePanel();
 }
 
-function connectionDetailFor(): string {
-  if (popupState.connected && isSettingsLocked(popupState)) return "音訊尚未切到目前分頁，請先改擷取此分頁";
-  if (popupState.connected && showDivergenceBanner(popupState)) return "音訊來自另一個分頁";
-  if (popupState.connected) return "目前分頁音訊正在處理";
-  return "按連線開始處理此分頁音訊";
+/** The detail line's meaning depends on why the controls are locked, not on state alone. */
+type ConnectionDetail = "disconnected" | "locked" | "otherTab" | "connected";
+
+function connectionDetailFor(): ConnectionDetail {
+  if (popupState.connected && isSettingsLocked(popupState)) return "locked";
+  if (popupState.connected && showDivergenceBanner(popupState)) return "otherTab";
+  if (popupState.connected) return "connected";
+  return "disconnected";
+}
+
+/** One place that writes the connect button's three copies, so they cannot drift. */
+type ConnectAction = "connect" | "connecting" | "disconnect" | "reconnect";
+
+function setConnectButtonCopy(action: ConnectAction) {
+  connectLabel.textContent = t(`connection.button.label.${action}`);
+  connectBtn.setAttribute("aria-label", t(`connection.button.ariaLabel.${action}`));
+  connectBtn.setAttribute("data-tooltip", t(`connection.button.tooltip.${action}`));
 }
 
 function renderConnectionState() {
@@ -178,33 +213,25 @@ function renderConnectionState() {
   body.dataset.connectionState = state;
 
   if (state === "connecting") {
-    connectionText.textContent = "連線中";
-    connectionHeadline.textContent = "正在建立音訊通道";
-    connectionDetail.textContent = "請不要關閉目前分頁";
-    connectLabel.textContent = "正在連線…";
-    connectBtn.setAttribute("aria-label", "正在連線");
-    connectBtn.setAttribute("data-tooltip", "正在連線...");
+    connectionText.textContent = t("connection.status.connecting");
+    connectionHeadline.textContent = t("connection.headline.connecting");
+    connectionDetail.textContent = t("connection.detail.connecting");
+    setConnectButtonCopy("connecting");
   } else if (state === "connected") {
-    connectionText.textContent = "已連線";
-    connectionHeadline.textContent = "音訊通道已建立";
-    connectionDetail.textContent = connectionDetailFor();
-    connectLabel.textContent = "斷開連線";
-    connectBtn.setAttribute("aria-label", "斷開連線");
-    connectBtn.setAttribute("data-tooltip", "斷開連線");
+    connectionText.textContent = t("connection.status.connected");
+    connectionHeadline.textContent = t("connection.headline.connected");
+    connectionDetail.textContent = t(`connection.detail.${connectionDetailFor()}`);
+    setConnectButtonCopy("disconnect");
   } else if (state === "lost") {
-    connectionText.textContent = "連線中斷";
-    connectionHeadline.textContent = "音訊通道已中斷";
-    connectionDetail.textContent = "重新連線後可繼續處理";
-    connectLabel.textContent = "重新連線";
-    connectBtn.setAttribute("aria-label", "重新連線");
-    connectBtn.setAttribute("data-tooltip", "重新連線");
+    connectionText.textContent = t("connection.status.lost");
+    connectionHeadline.textContent = t("connection.headline.lost");
+    connectionDetail.textContent = t("connection.detail.lost");
+    setConnectButtonCopy("reconnect");
   } else {
-    connectionText.textContent = "尚未連線";
-    connectionHeadline.textContent = "等待開始";
-    connectionDetail.textContent = "按連線開始處理此分頁音訊";
-    connectLabel.textContent = "連線音訊";
-    connectBtn.setAttribute("aria-label", "連線音訊");
-    connectBtn.setAttribute("data-tooltip", "連線音訊");
+    connectionText.textContent = t("connection.status.disconnected");
+    connectionHeadline.textContent = t("connection.headline.disconnected");
+    connectionDetail.textContent = t("connection.detail.disconnected");
+    setConnectButtonCopy("connect");
   }
 
   connectBtn.disabled = popupState.connecting;
@@ -221,20 +248,13 @@ function renderDivergence() {
   renderMemoryState();
   if (!show) return;
   divergenceText.textContent = capturedTabTitle
-    ? `目前音訊來自「${capturedTabTitle}」`
-    : "目前音訊來自另一個分頁";
+    ? t("divergence.namedTab", { title: capturedTabTitle })
+    : t("divergence.otherTab");
 }
 
 /* ------------------------------------------------------- 頁面記憶記號 */
 
 type MemoryMode = "pending" | "saved" | "none" | "locked";
-
-const MEMORY_COPY: Record<MemoryMode, string> = {
-  pending: "頁面記憶 · 依頁面 URL 分開保存 · 連線後套用",
-  saved: "頁面記憶 · 已套用此頁的設定",
-  none: "頁面記憶 · 尚無記錄 · 變更會依頁面保存",
-  locked: "頁面記憶 · 頁面不同 · 改擷取後套用",
-};
 
 /**
  * 頁面記憶的狀態記號：連線前尚未套用、連線後依稀疏記錄顯示已套用/無記錄、
@@ -250,7 +270,7 @@ function renderMemoryState(): void {
           ? "saved"
           : "none";
   memoryStrip.dataset.memory = mode;
-  memoryText.textContent = MEMORY_COPY[mode];
+  memoryText.textContent = t(`memory.${mode}`);
 }
 
 /* ------------------------------------------------------- divergence watch */
@@ -332,7 +352,7 @@ function sendMessage<T extends RuntimeResponse = RuntimeResponse>(
       resolve(response);
     };
     const timeout = setTimeout(() => {
-      finish({ error: "Extension audio service did not respond" } as T);
+      finish({ error: t("error.serviceUnresponsive") } as T);
     }, timeoutMs);
     const attempt = (remaining: number) => {
       try {
@@ -345,7 +365,7 @@ function sendMessage<T extends RuntimeResponse = RuntimeResponse>(
             finish({ error: chrome.runtime.lastError.message } as T);
             return;
           }
-          finish((response ?? { error: "Extension audio service returned no response" }) as T);
+          finish((response ?? { error: t("error.serviceNoResponse") }) as T);
         });
       } catch (err) {
         finish({ error: err instanceof Error ? err.message : String(err) } as T);
@@ -363,7 +383,7 @@ async function sendSafe(
   try {
     const response = await sendMessage<RuntimeResponse>(msg, 0, timeoutMs);
     if (response?.ok === true) return true;
-    if (reportFailure) showError(response?.error ?? "Offscreen command failed");
+    if (reportFailure) showError(response?.error ?? t("error.offscreenCommandFailed"));
     return false;
   } catch (err) {
     if (reportFailure) showError(err instanceof Error ? err.message : String(err));
@@ -505,26 +525,22 @@ async function refreshCapturedTabTitle(): Promise<void> {
  * passing through unprocessed and the user is told instead of guessing from a
  * slider that appears to do nothing.
  */
-const ROUTE_COPY: Record<string, { name: string; desc: string }> = {
-  standby: { name: "待命", desc: "尚未連線" },
-  signalsmith: { name: "Signalsmith", desc: "即時移調，節奏不變" },
-  accompaniment: { name: "伴奏", desc: "低頻重取樣 ＋ 高頻時域拉伸" },
-  bypass: { name: "旁路", desc: "擷取音訊未經處理直接輸出" },
-  passthrough: { name: "未處理", desc: "移調引擎未啟動，音訊直接通過" },
-};
+/** Closed set, so an unknown route from the graph falls back rather than renders blank. */
+const ROUTE_KEYS = ["standby", "signalsmith", "accompaniment", "bypass", "passthrough"] as const;
 
 function renderRoute() {
-  const key = popupState.route ?? "standby";
-  const copy = ROUTE_COPY[key] ?? ROUTE_COPY.standby;
+  const route = popupState.route;
+  const key = route && (ROUTE_KEYS as readonly string[]).includes(route) ? route : "standby";
   body.dataset.route = key;
-  routeName.textContent = copy.name;
-  routeDesc.textContent = copy.desc;
+  routeName.textContent = t(`route.${key}.name`);
+  routeDesc.textContent = t(`route.${key}.desc`);
 }
 
 function updateBypassButtonState() {
-  bypassBtn.setAttribute("aria-pressed", String(popupState.bypass));
-  bypassBtn.setAttribute("aria-label", popupState.bypass ? "停用旁路" : "啟用旁路");
-  bypassBtn.setAttribute("data-tooltip", popupState.bypass ? "停用旁路 (引擎處理)" : "啟用旁路 (原始音訊直通)");
+  const on = popupState.bypass;
+  bypassBtn.setAttribute("aria-pressed", String(on));
+  bypassBtn.setAttribute("aria-label", t(on ? "bypass.disable" : "bypass.enable"));
+  bypassBtn.setAttribute("data-tooltip", t(on ? "bypass.disableTooltip" : "bypass.enableTooltip"));
 }
 
 function applySnap(snap: boolean) {
@@ -630,7 +646,7 @@ async function connectCurrentTab(): Promise<boolean> {
   try {
     const tab = await queryActiveTab();
     if (tab?.id === undefined) {
-      showError("找不到目前分頁");
+      showError(t("error.activeTabNotFound"));
       return false;
     }
 
@@ -640,7 +656,7 @@ async function connectCurrentTab(): Promise<boolean> {
       HANDOVER_TIMEOUT_MS,
     );
     if (response?.ok !== true) {
-      showError(response?.error ?? "Unable to start capture");
+      showError(response?.error ?? t("error.startCaptureFailed"));
       return false;
     }
 
@@ -682,7 +698,7 @@ async function disconnectCapture(): Promise<boolean> {
   try {
     const response = await sendMessage<RuntimeResponse>({ type: "RELEASE_CAPTURE" }, 0, RELEASE_TIMEOUT_MS);
     if (response?.ok !== true) {
-      showError(response?.error ?? "Unable to stop capture");
+      showError(response?.error ?? t("error.stopCaptureFailed"));
       return false;
     }
     popupState = { ...popupState, captureLost: false };
@@ -711,13 +727,13 @@ function readBaseVolumeInput(): number {
 /** Talks to the content script of the tab the popup was opened on. */
 function requestFromActiveTab(msg: Record<string, unknown>): Promise<YoutubeTabResponse> {
   const tabId = popupState.activeTabId;
-  if (tabId === null) return Promise.resolve({ ok: false, error: "找不到目前分頁" });
+  if (tabId === null) return Promise.resolve({ ok: false, error: t("error.activeTabNotFound") });
   return new Promise((resolve) => {
     try {
       chrome.tabs.sendMessage(tabId, msg, (response) => {
         const err = chrome.runtime.lastError;
         if (err) resolve({ ok: false, error: describeMissingReceiver(err.message) });
-        else resolve((response as YoutubeTabResponse | undefined) ?? { ok: false, error: "YouTube 控制項未回應" });
+        else resolve((response as YoutubeTabResponse | undefined) ?? { ok: false, error: t("error.playerUnresponsive") });
       });
     } catch (err) {
       resolve({ ok: false, error: err instanceof Error ? err.message : String(err) });
@@ -729,12 +745,17 @@ function requestFromActiveTab(msg: Record<string, unknown>): Promise<YoutubeTabR
  * `Receiving end does not exist` means the content script never registered in
  * that tab — it is injected at page load, so a freshly (re)loaded extension
  * leaves older tabs without it. Say that instead of blaming the page.
+ *
+ * The needle stays English and untranslated on purpose: it is matched against
+ * Chrome's own `runtime.lastError`, which is never localized. Only the message
+ * handed to the user comes from the catalog. Localizing the needle would make
+ * the match fail in every non-English locale.
  */
 function describeMissingReceiver(message: string | undefined): string {
   if (message?.includes("Receiving end does not exist")) {
-    return "影片控制項未載入：重載擴充功能後，請重新載入此分頁";
+    return t("error.playerNotLoaded");
   }
-  return message ?? "YouTube 控制項未回應";
+  return message ?? t("error.playerUnresponsive");
 }
 
 async function refreshYoutubeState(): Promise<void> {
@@ -747,7 +768,7 @@ async function refreshYoutubeState(): Promise<void> {
     return;
   }
   const response = await requestFromActiveTab({ type: "YT_VOLUME_GET" });
-  youtube.error = response.ok === true ? null : (response.error ?? "YouTube 控制項未回應");
+  youtube.error = response.ok === true ? null : (response.error ?? t("error.playerUnresponsive"));
   youtube.found = response.ok === true && response.found === true;
   youtube.volume = youtube.found && typeof response.volume === "number" ? response.volume : null;
   youtube.muted = response.muted === true;
@@ -760,23 +781,25 @@ async function refreshYoutubeState(): Promise<void> {
  * removed the one feature that needed a live signal: loudness analysis).
  */
 function youtubeHintText(onYouTube: boolean): string {
-  if (!onYouTube) return "此面板僅適用於 YouTube（www.youtube.com）";
+  if (!onYouTube) return t("youtube.hint.notYouTube");
   if (youtube.error) return youtube.error;
-  if (!youtube.found) return "此頁面找不到影片";
-  if (youtube.muted) return "影片已靜音；按「套用」設定音量會一併取消靜音";
+  if (!youtube.found) return t("youtube.hint.noVideo");
+  if (youtube.muted) return t("youtube.hint.muted");
   return "";
 }
 
 function deviationText(): string {
-  if (!isYouTubePage(popupState.activePage)) return "切到 YouTube 頁面即可控制影片音量";
-  if (!youtube.found) return "此頁面沒有可控制的影片";
-  if (youtube.volume === null) return "按「套用」把基準音量寫入影片";
-  if (youtube.volume <= 0) return "目前音量為 0";
-  if (youtube.base <= 0) return "基準音量為 0";
+  if (!isYouTubePage(popupState.activePage)) return t("deviation.notYouTube");
+  if (!youtube.found) return t("deviation.noVideo");
+  if (youtube.volume === null) return t("deviation.applyToWrite");
+  if (youtube.volume <= 0) return t("deviation.currentIsZero");
+  if (youtube.base <= 0) return t("deviation.baseIsZero");
   // Percentage, not dB: it is the number the slider itself speaks (ADR-0006).
   const delta = volumeDeltaPercent(youtube.volume, youtube.base);
-  if (delta === 0) return "目前音量與基準一致";
-  return `目前音量比基準${delta > 0 ? "高" : "低"} ${Math.abs(delta)}%`;
+  if (delta === 0) return t("deviation.matchesBase");
+  return t(delta > 0 ? "deviation.higherThanBase" : "deviation.lowerThanBase", {
+    value: formatNumber(Math.abs(delta)),
+  });
 }
 
 function renderYoutubePanel(): void {
@@ -786,11 +809,13 @@ function renderYoutubePanel(): void {
   if (document.activeElement !== volumeBaseInput) volumeBaseInput.value = String(youtube.base);
 
   if (!onYouTube || !youtube.found || youtube.volume === null) {
-    volumeCurrent.textContent = "目前 —";
+    volumeCurrent.textContent = t("volume.currentUnknown");
   } else if (youtube.muted) {
-    volumeCurrent.textContent = "目前 靜音";
+    volumeCurrent.textContent = t("volume.currentMuted");
   } else {
-    volumeCurrent.textContent = `目前 ${Math.round(youtube.volume)}`;
+    volumeCurrent.textContent = t("volume.currentValue", {
+      value: formatNumber(Math.round(youtube.volume)),
+    });
   }
 
   volumeApplyBtn.disabled = !youtube.found;
@@ -819,7 +844,7 @@ async function setYoutubeVolume(value: number): Promise<boolean> {
   const target = clampVolume(value);
   const response = await requestFromActiveTab({ type: "YT_VOLUME_SET", value: target });
   if (response.ok !== true) {
-    showError(response.error ?? "無法設定影片音量");
+    showError(response.error ?? t("error.setVolumeFailed"));
     return false;
   }
   youtube.volume = target;
@@ -1016,9 +1041,16 @@ volumeFadeBtn.addEventListener("click", () => {
 });
 
 async function initializePopup() {
+  // Resolve the locale before the first render. applyStaticMessages then fixes
+  // the markup, and every dynamic string below reads through the same `t`.
+  const locale = await detectLocale();
+  t = createTranslator(locale);
+  applyDocumentLanguage(locale);
+  applyStaticMessages(document, t);
+
   const activeTab = await queryActiveTab();
   popupState = setActiveTab(popupState, { id: activeTab?.id, page: pageKey(activeTab?.url) });
-  const title = activeTab?.title ?? "No active tab";
+  const title = activeTab?.title ?? t("tab.none");
   tabTitle.textContent = title;
   tabTitle.title = title;
 

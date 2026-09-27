@@ -1,0 +1,143 @@
+{
+  "app": {
+    "title": "Fidelitone"
+  },
+  "tab": {
+    "none": "No active tab"
+  },
+  "rail": {
+    "ariaLabel": "音高刻度軌"
+  },
+  "pitch": {
+    "ariaLabel": "音高調整",
+    "heading": "音高",
+    "unit": "st",
+    "valueAriaText": "{value} semitones",
+    "down": "降低音高",
+    "up": "提高音高",
+    "reset": "重設音高為 0"
+  },
+  "snap": {
+    "label": "半音吸附",
+    "helper": "以整數半音調整"
+  },
+  "connection": {
+    "ariaLabel": "音訊連線",
+    "status": {
+      "disconnected": "尚未連線",
+      "connecting": "連線中",
+      "connected": "已連線",
+      "lost": "連線中斷"
+    },
+    "headline": {
+      "disconnected": "等待開始",
+      "connecting": "正在建立音訊通道",
+      "connected": "音訊通道已建立",
+      "lost": "音訊通道已中斷"
+    },
+    "detail": {
+      "disconnected": "按連線開始處理此分頁音訊",
+      "connecting": "請不要關閉目前分頁",
+      "connected": "目前分頁音訊正在處理",
+      "locked": "音訊尚未切到目前分頁，請先改擷取此分頁",
+      "otherTab": "音訊來自另一個分頁",
+      "lost": "重新連線後可繼續處理"
+    },
+    "button": {
+      "ariaLabel": {
+        "connect": "連線音訊",
+        "connecting": "正在連線",
+        "disconnect": "斷開連線",
+        "reconnect": "重新連線"
+      },
+      "label": {
+        "connect": "連線音訊",
+        "connecting": "正在連線…",
+        "disconnect": "斷開連線",
+        "reconnect": "重新連線"
+      },
+      "tooltip": {
+        "connect": "連線音訊",
+        "connecting": "正在連線...",
+        "disconnect": "斷開連線",
+        "reconnect": "重新連線"
+      }
+    }
+  },
+  "bypass": {
+    "enable": "啟用旁路",
+    "enableTooltip": "啟用旁路 (原始音訊直通)",
+    "disable": "停用旁路",
+    "disableTooltip": "停用旁路 (引擎處理)"
+  },
+  "memory": {
+    "pending": "頁面記憶 · 依頁面 URL 分開保存 · 連線後套用",
+    "saved": "頁面記憶 · 已套用此頁的設定",
+    "none": "頁面記憶 · 尚無記錄 · 變更會依頁面保存",
+    "locked": "頁面記憶 · 頁面不同 · 改擷取後套用"
+  },
+  "divergence": {
+    "action": "改擷取此分頁",
+    "otherTab": "目前音訊來自另一個分頁",
+    "namedTab": "目前音訊來自「{title}」"
+  },
+  "error": {
+    "recovery": "再試一次；若一直失敗，重新開啟這個分頁",
+    "activeTabNotFound": "找不到目前分頁",
+    "startCaptureFailed": "Unable to start capture",
+    "stopCaptureFailed": "Unable to stop capture",
+    "serviceUnresponsive": "Extension audio service did not respond",
+    "serviceNoResponse": "Extension audio service returned no response",
+    "offscreenCommandFailed": "Offscreen command failed",
+    "playerUnresponsive": "YouTube 控制項未回應",
+    "playerNotLoaded": "影片控制項未載入：重載擴充功能後，請重新載入此分頁",
+    "setVolumeFailed": "無法設定影片音量"
+  },
+  "route": {
+    "heading": "信號路徑",
+    "standby": { "name": "待命", "desc": "尚未連線" },
+    "signalsmith": { "name": "Signalsmith", "desc": "即時移調，節奏不變" },
+    "accompaniment": { "name": "伴奏", "desc": "低頻重取樣 ＋ 高頻時域拉伸" },
+    "bypass": { "name": "旁路", "desc": "擷取音訊未經處理直接輸出" },
+    "passthrough": { "name": "未處理", "desc": "移調引擎未啟動，音訊直接通過" }
+  },
+  "youtube": {
+    "heading": "YouTube 音量",
+    "hint": {
+      "notYouTube": "此面板僅適用於 YouTube（www.youtube.com）",
+      "noVideo": "此頁面找不到影片",
+      "muted": "影片已靜音；按「套用」設定音量會一併取消靜音"
+    }
+  },
+  "volume": {
+    "baseLabel": "基準音量",
+    "baseAriaLabel": "基準音量（0–100%）",
+    "applyAriaLabel": "套用基準音量",
+    "applyTooltip": "套用基準音量",
+    "fade": "淡出",
+    "currentUnknown": "目前 —",
+    "currentMuted": "目前 靜音",
+    "currentValue": "目前 {value}"
+  },
+  "deviation": {
+    "notYouTube": "切到 YouTube 頁面即可控制影片音量",
+    "noVideo": "此頁面沒有可控制的影片",
+    "applyToWrite": "按「套用」把基準音量寫入影片",
+    "currentIsZero": "目前音量為 0",
+    "baseIsZero": "基準音量為 0",
+    "matchesBase": "目前音量與基準一致",
+    "higherThanBase": "目前音量比基準高 {value}%",
+    "lowerThanBase": "目前音量比基準低 {value}%"
+  },
+  "options": {
+    "heading": "進階選項",
+    "formants": {
+      "label": "共振峰保護",
+      "helper": "保持人聲/樂器音色特徵，防止變調時共振峰位移導致音色改變"
+    },
+    "accompaniment": {
+      "label": "伴奏模式",
+      "helper": "低頻重取樣，高頻 Signalsmith"
+    }
+  }
+}

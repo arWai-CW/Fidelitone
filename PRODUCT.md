@@ -41,7 +41,7 @@ Fidelitone 是一個 Chrome 擴充套件：即時移調任何 Chrome 分頁正�
 - **信號路徑是唯讀讀數，不是可選清單**：ADR-0007 移除雙引擎後，popup 的「信號路徑」列只回報音訊目前實際走的路（`Signalsmith` / `伴奏` / `旁路` / `未處理`），使用者不能選。存在的理由是誠實——引擎未啟動時必須看得到音訊其實沒被處理。
 - **同時只能擷取一個分頁**是 Chrome 的限制，屬產品事實：介面需誠實呈現（badge `ON` / `ON·` / `!`、分歧橫幅、改擷取按鈕），不隱藏、不假裝。
 - **零外部服務**：音訊全程本機處理，不上傳、不依賴外部 API 或帳號。
-- **介面語言為繁體中文**（`zh-Hant`）：popup 文案、CONTEXT.md 術語均為繁中；術語以 `CONTEXT.md` 為準（如「連線音訊」「頁面記憶」「輸出總閘」）。
+- **介面語言為繁體中文（`zh-Hant`）、英文（`en`）、日文（`ja`）**：popup 文案全部來自 `src/i18n/locales/`，術語以 `CONTEXT.md` 為準（如「連線音訊」「頁面記憶」「輸出總閘」），三語對照見 `CONTEXT.md`。語系依使用者的**瀏覽偏好語言**解析，其次為瀏覽器介面語言，都沒有翻譯時回落到 `zh-Hant`——即本產品既有的介面。**不做**使用者手動切換語言（見 ADR-0008）。
 - 授權組合固定：專案程式碼與 Signalsmith Stretch 皆為 MIT（見 `LICENSE`）——ADR-0007 移除 GPLv2+ 的 Rubber Band 後，整包為單一授權，這是發布時的合規事實。
 - 技術事實：Chrome MV3，三 context（service worker / offscreen document / popup）加兩支 content script；`npm run build` 產出 `dist/` 後以 unpacked 載入。
 - 技術事實（量測）：移調引擎延遲 100 ms（`blockMs 80 / intervalMs 20 / splitComputation: true`，`npm run latency` 量得，`node.latency()` 自報值一致），另加平台 `baseLatency` 5.3 ms 與 `outputLatency` 16 ms；tabCapture 輸入緩衝 Chrome 未公開、不在量測內。100 ms 對跟唱工作流足夠，但不是監聽級——介面與文案不得宣稱「極低延遲」。

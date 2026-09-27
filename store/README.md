@@ -26,7 +26,7 @@ about quality that belongs to the underlying library.
 | Field | Value |
 | --- | --- |
 | Category | **Music and audio** (or Productivity — the store will re-file if it disagrees) |
-| Language | Chinese (Traditional) — the UI is `zh-Hant` throughout |
+| Language | Chinese (Traditional) — the listing copy is `zh-Hant`. The UI itself is localized (`zh-Hant` / `en` / `ja`) and follows the user's browser; the listing form has no language field beyond this one, so the other two are reached by localized store listings, not by this form. |
 | Distribution | Global, but the listing copy is `zh-Hant`; add an English listing if you want reach |
 | Manifest V3 | Yes |
 | Single purpose | Transpose the pitch of audio playing in a browser tab, in real time, without changing tempo |

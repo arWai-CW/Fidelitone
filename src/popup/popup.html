@@ -8,15 +8,27 @@
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link
-			href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap"
+			href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap"
 			rel="stylesheet"
 		/>
 	</head>
+	<!-- Every user-visible string below carries its catalog key: data-i18n is the
+	     text, data-i18n-aria the aria-label, data-i18n-title the tooltip. The
+	     rendered zh-Hant copy is kept in place as the pre-script fallback, so the
+	     panel is complete before popup.ts runs rather than empty for a frame. -->
 	<body data-connection-state="disconnected">
 		<div class="popup-shell">
 			<header class="bench-header">
 				<div class="wordmark">Fidelitone</div>
-				<div class="tab-title" id="tabTitle" title="No active tab">No active tab</div>
+				<div
+					class="tab-title"
+					id="tabTitle"
+					title="No active tab"
+					data-i18n="tab.none"
+					data-i18n-title="tab.none"
+				>
+					No active tab
+				</div>
 			</header>
 
 			<!-- 打孔軌：狀態文案、半音刻度、折角旗、膠片條 -->
@@ -25,6 +37,7 @@
 				id="railBand"
 				style="--pitch-pct: 0.5"
 				aria-label="音高刻度軌"
+				data-i18n-aria="rail.ariaLabel"
 			>
 				<div class="rail-status" role="status" aria-live="polite">
 					<span class="status-mark" aria-hidden="true">
@@ -42,7 +55,7 @@
 							<path d="M12.5 3.5 3.5 12.5" />
 						</svg>
 					</span>
-					<span class="rail-status-text" id="connectionText">尚未連線</span>
+					<span class="rail-status-text" id="connectionText" data-i18n="connection.status.disconnected">尚未連線</span>
 				</div>
 
 					<!-- rail-track：刻度＋膠片條一體，slider 蓋滿整段，點哪一段都能拖 -->
@@ -71,17 +84,26 @@
 						value="0"
 						aria-label="音高調整"
 						aria-valuetext="+0.00 semitones"
+						data-i18n-aria="pitch.ariaLabel"
 					/>
 				</div>
 			</section>
 
-			<section class="strip connection-strip" aria-label="音訊連線">
+			<section class="strip connection-strip" aria-label="音訊連線" data-i18n-aria="connection.ariaLabel">
 				<div class="connection-copy">
-					<strong id="connectionHeadline">等待開始</strong>
-					<span id="connectionDetail">按連線開始處理此分頁音訊</span>
+					<strong id="connectionHeadline" data-i18n="connection.headline.disconnected">等待開始</strong>
+					<span id="connectionDetail" data-i18n="connection.detail.disconnected">按連線開始處理此分頁音訊</span>
 				</div>
 				<div class="connection-actions">
-					<button class="tape-btn" id="connectBtn" type="button" aria-label="連線音訊" data-tooltip="連線音訊">
+					<button
+						class="tape-btn"
+						id="connectBtn"
+						type="button"
+						aria-label="連線音訊"
+						data-tooltip="連線音訊"
+						data-i18n-aria="connection.button.ariaLabel.connect"
+						data-i18n-tooltip="connection.button.tooltip.connect"
+					>
 						<svg
 							class="icon icon-power"
 							viewBox="0 0 49.548 49.549"
@@ -107,7 +129,7 @@
 						>
 							<circle cx="12" cy="12" r="10" stroke-dasharray="31.4 31.4" />
 						</svg>
-						<span class="btn-label" id="connectLabel">連線音訊</span>
+						<span class="btn-label" id="connectLabel" data-i18n="connection.button.label.connect">連線音訊</span>
 					</button>
 					<button
 						class="mark-btn"
@@ -116,6 +138,8 @@
 						aria-label="啟用旁路"
 						aria-pressed="false"
 						data-tooltip="啟用旁路 (原始音訊直通)"
+						data-i18n-aria="bypass.enable"
+						data-i18n-tooltip="bypass.enableTooltip"
 					>
 						<svg
 							class="icon icon-bypass"
@@ -125,10 +149,10 @@
 							stroke="none"
 						>
 							<path
-								d="M20,16L23,13L20,10L20,12L18.748,12C17.86,8.55 14.728,6 11,6C7.272,6 4.14,8.55 3.252,12L-0.71,12L-0.71,14L5,14C5,10.686 7.686,8 11,8C14.314,8 17,10.686 17,14L20,14L20,16Z"
+								d="M20,16L23,13L20,10L20,12L18.748,12C17.86,8.55,14.728,6,11,6C7.272,6,4.14,8.55,3.252,12L-0.71,12L-0.71,14L5,14C5,10.686,7.686,8,11,8C14.314,8,17,10.686,17,14L20,14L20,16Z"
 							/>
 							<path
-								d="M15,14C15,16.209 13.209,18 11,18C8.791,18 7,16.209 7,14C7,11.791 8.791,10 11,10C13.209,10 15,11.791 15,14Z"
+								d="M15,14C15,16.209,13.209,18,11,18C8.791,18,7,16.209,7,14C7,11.791,8.791,10,11,10C13.209,10,15,11.791,15,14Z"
 							/>
 						</svg>
 						<svg
@@ -163,17 +187,17 @@
 						<path d="M12.5 3.5 3.5 12.5" />
 					</svg>
 				</span>
-				<span class="memory-text" id="memoryText">頁面記憶 · 依頁面 URL 分開保存 · 連線後套用</span>
+				<span class="memory-text" id="memoryText" data-i18n="memory.pending">頁面記憶 · 依頁面 URL 分開保存 · 連線後套用</span>
 			</div>
 
 			<div class="error-msg" id="errorMsg" role="alert" aria-live="assertive">
 				<span class="error-text" id="errorText"></span>
-				<span class="error-recovery">再試一次；若一直失敗，重新開啟這個分頁</span>
+				<span class="error-recovery" data-i18n="error.recovery">再試一次；若一直失敗，重新開啟這個分頁</span>
 			</div>
 
 			<div class="divergence-banner" id="divergenceBanner" hidden>
 				<span class="divergence-copy" id="divergenceText"></span>
-				<button class="divergence-action" id="captureThisTab" type="button">
+				<button class="divergence-action" id="captureThisTab" type="button" data-i18n="divergence.action">
 					改擷取此分頁
 				</button>
 			</div>
@@ -181,17 +205,33 @@
 			<main>
 				<section class="strip pitch-panel control-lock" aria-labelledby="pitchHeading">
 					<div class="strip-head">
-						<h2 id="pitchHeading">音高</h2>
+						<h2 id="pitchHeading" data-i18n="pitch.heading">音高</h2>
 						<div class="pitch-readout">
-							<button class="step-btn" id="pitchDown" type="button" aria-label="降低音高" data-tooltip="降低音高">
+							<button
+								class="step-btn"
+								id="pitchDown"
+								type="button"
+								aria-label="降低音高"
+								data-tooltip="降低音高"
+								data-i18n-aria="pitch.down"
+								data-i18n-tooltip="pitch.down"
+							>
 								<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
 									<path d="M5 12h14" />
 								</svg>
 							</button>
 							<output class="pitch-value" id="pitchValue" aria-live="polite">
-								<span id="pitchNumber">+0.00</span><small>st</small>
+								<span id="pitchNumber">+0.00</span><small data-i18n="pitch.unit">st</small>
 							</output>
-							<button class="step-btn" id="pitchUp" type="button" aria-label="提高音高" data-tooltip="提高音高">
+							<button
+								class="step-btn"
+								id="pitchUp"
+								type="button"
+								aria-label="提高音高"
+								data-tooltip="提高音高"
+								data-i18n-aria="pitch.up"
+								data-i18n-tooltip="pitch.up"
+							>
 								<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
 									<path d="M12 5v14" />
 									<path d="M5 12h14" />
@@ -203,6 +243,8 @@
 								type="button"
 								aria-label="重設音高為 0"
 								data-tooltip="重設音高為 0"
+								data-i18n-aria="pitch.reset"
+								data-i18n-tooltip="pitch.reset"
 							>
 								<svg
 									viewBox="-2.5 -2.5 22 22"
@@ -224,28 +266,28 @@
 						<input type="checkbox" id="snapCheckbox" role="switch" checked />
 						<span class="switch" aria-hidden="true"></span>
 						<span class="option-copy">
-							<span class="option-label">半音吸附</span>
-							<span class="option-helper">以整數半音調整</span>
+							<span class="option-label" data-i18n="snap.label">半音吸附</span>
+							<span class="option-helper" data-i18n="snap.helper">以整數半音調整</span>
 						</span>
 					</label>
 				</section>
 
 				<section class="strip signal-panel" aria-labelledby="signalHeading">
-					<h2 id="signalHeading">信號路徑</h2>
+					<h2 id="signalHeading" data-i18n="route.heading">信號路徑</h2>
 					<p class="route-line">
 						<span class="route-mark" id="routeMark" aria-hidden="true"></span>
-						<span class="route-name" id="routeName">待命</span>
-						<span class="route-desc" id="routeDesc">尚未連線</span>
+						<span class="route-name" id="routeName" data-i18n="route.standby.name">待命</span>
+						<span class="route-desc" id="routeDesc" data-i18n="route.standby.desc">尚未連線</span>
 					</p>
 				</section>
 
 				<section class="strip youtube-panel" id="youtubePanel" aria-labelledby="youtubeHeading" hidden>
 					<div class="strip-head">
-						<h2 id="youtubeHeading">YouTube 音量</h2>
-						<output class="volume-current" id="volumeCurrent" aria-live="polite">目前 —</output>
+						<h2 id="youtubeHeading" data-i18n="youtube.heading">YouTube 音量</h2>
+						<output class="volume-current" id="volumeCurrent" aria-live="polite" data-i18n="volume.currentUnknown">目前 —</output>
 					</div>
 
-					<div class="block-label">基準音量</div>
+					<div class="block-label" data-i18n="volume.baseLabel">基準音量</div>
 					<div class="volume-row">
 						<input
 							type="number"
@@ -257,6 +299,7 @@
 							value="100"
 							inputmode="numeric"
 							aria-label="基準音量（0–100%）"
+							data-i18n-aria="volume.baseAriaLabel"
 						/>
 						<span class="volume-percent" aria-hidden="true">%</span>
 						<button
@@ -265,6 +308,8 @@
 							type="button"
 							aria-label="套用基準音量"
 							data-tooltip="套用基準音量"
+							data-i18n-aria="volume.applyAriaLabel"
+							data-i18n-tooltip="volume.applyTooltip"
 						>
 							<svg
 								class="icon"
@@ -279,22 +324,22 @@
 								<path d="M20 6 9 17l-5-5" />
 							</svg>
 						</button>
-						<button class="ghost-btn" id="volumeFadeBtn" type="button">淡出</button>
+						<button class="ghost-btn" id="volumeFadeBtn" type="button" data-i18n="volume.fade">淡出</button>
 					</div>
-					<p class="panel-note" id="volumeDeviation">目前音量與基準一致</p>
+					<p class="panel-note" id="volumeDeviation" data-i18n="deviation.matchesBase">目前音量與基準一致</p>
 					<p class="panel-note" id="youtubeHint"></p>
 				</section>
 
 				<section class="strip options-panel control-lock" aria-labelledby="optionsHeading">
 					<span class="pin pin-l" aria-hidden="true"></span>
 					<span class="pin pin-r" aria-hidden="true"></span>
-					<h2 id="optionsHeading" class="section-title">進階選項</h2>
+					<h2 id="optionsHeading" class="section-title" data-i18n="options.heading">進階選項</h2>
 					<label class="option-row trim">
 						<input type="checkbox" id="formantCheckbox" role="switch" />
 						<span class="switch" aria-hidden="true"></span>
 						<span class="option-copy">
-							<span class="option-label">共振峰保護</span>
-							<span class="option-helper"
+							<span class="option-label" data-i18n="options.formants.label">共振峰保護</span>
+							<span class="option-helper" data-i18n="options.formants.helper"
 								>保持人聲/樂器音色特徵，防止變調時共振峰位移導致音色改變</span
 							>
 						</span>
@@ -304,8 +349,8 @@
 						<input type="checkbox" id="accompanimentCheckbox" role="switch" />
 						<span class="switch" aria-hidden="true"></span>
 						<span class="option-copy">
-							<span class="option-label">伴奏模式</span>
-							<span class="option-helper">低頻重取樣，高頻 Signalsmith</span>
+							<span class="option-label" data-i18n="options.accompaniment.label">伴奏模式</span>
+							<span class="option-helper" data-i18n="options.accompaniment.helper">低頻重取樣，高頻 Signalsmith</span>
 						</span>
 					</label>
 				</section>

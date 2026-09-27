@@ -1,0 +1,143 @@
+{
+  "app": {
+    "title": "Fidelitone"
+  },
+  "tab": {
+    "none": "No active tab"
+  },
+  "rail": {
+    "ariaLabel": "ピッチ目盛りレール"
+  },
+  "pitch": {
+    "ariaLabel": "ピッチ調整",
+    "heading": "ピッチ",
+    "unit": "半音",
+    "valueAriaText": "{value} 半音",
+    "down": "ピッチを下げる",
+    "up": "ピッチを上げる",
+    "reset": "ピッチを 0 に戻す"
+  },
+  "snap": {
+    "label": "半音にスナップ",
+    "helper": "整数半単位で調整します"
+  },
+  "connection": {
+    "ariaLabel": "音声接続",
+    "status": {
+      "disconnected": "未接続",
+      "connecting": "接続中",
+      "connected": "接続済み",
+      "lost": "接続が切れました"
+    },
+    "headline": {
+      "disconnected": "準備完了",
+      "connecting": "音声を開いています",
+      "connected": "音声を開きました",
+      "lost": "音声が切れました"
+    },
+    "detail": {
+      "disconnected": "接続を押すとこのタブの音声を処理します",
+      "connecting": "このタブを閉じないでください",
+      "connected": "このタブの音声を処理中",
+      "locked": "音声はまだこのタブにありません。先にこのタブをキャプチャしてください",
+      "otherTab": "音声は別のタブから届いています",
+      "lost": "再接続で処理を続けます"
+    },
+    "button": {
+      "ariaLabel": {
+        "connect": "音声を接続",
+        "connecting": "接続中",
+        "disconnect": "接続を解除",
+        "reconnect": "再接続"
+      },
+      "label": {
+        "connect": "音声を接続",
+        "connecting": "接続中…",
+        "disconnect": "接続を解除",
+        "reconnect": "再接続"
+      },
+      "tooltip": {
+        "connect": "音声を接続",
+        "connecting": "接続中…",
+        "disconnect": "接続を解除",
+        "reconnect": "再接続"
+      }
+    }
+  },
+  "bypass": {
+    "enable": "バイパスを有効化",
+    "enableTooltip": "バイパスを有効化（元音声をそのまま出力）",
+    "disable": "バイパスを無効化",
+    "disableTooltip": "バイパスを無効化（エンジンで処理）"
+  },
+  "memory": {
+    "pending": "ページメモリ · URL ごとに保存 · 接続時に適用",
+    "saved": "ページメモリ · このページの設定を適用済み",
+    "none": "ページメモリ · 記録なし · 変更はページごとに保存されます",
+    "locked": "ページメモリ · ページが異なる · キャプチャ変更後に適用"
+  },
+  "divergence": {
+    "action": "このタブをキャプチャ",
+    "otherTab": "音声は別のタブにあります",
+    "namedTab": "音声は「{title}」にあります"
+  },
+  "error": {
+    "recovery": "もう一度お試しください。続く場合はこのタブを開き直してください",
+    "activeTabNotFound": "現在のタブが見つかりません",
+    "startCaptureFailed": "Unable to start capture",
+    "stopCaptureFailed": "Unable to stop capture",
+    "serviceUnresponsive": "Extension audio service did not respond",
+    "serviceNoResponse": "Extension audio service returned no response",
+    "offscreenCommandFailed": "Offscreen command failed",
+    "playerUnresponsive": "YouTube のコントロールから応答がありません",
+    "playerNotLoaded": "動画コントロールが読み込まれていません：拡張機能を再読み込みしてから、このタブを再読み込みしてください",
+    "setVolumeFailed": "動画の音量を設定できませんでした"
+  },
+  "route": {
+    "heading": "信号パス",
+    "standby": { "name": "待機", "desc": "未接続" },
+    "signalsmith": { "name": "Signalsmith", "desc": "テンポを変えずにリアルタイム移調" },
+    "accompaniment": { "name": "伴奏", "desc": "低域はリサンプリング ＋ 高域は時間領域ストレッチ" },
+    "bypass": { "name": "バイパス", "desc": "キャプチャした音声を未処理のまま出力" },
+    "passthrough": { "name": "未処理", "desc": "ピッチエンジンが起動せず、音声はそのまま通過します" }
+  },
+  "youtube": {
+    "heading": "YouTube 音量",
+    "hint": {
+      "notYouTube": "このパネルは YouTube（www.youtube.com）でのみ使えます",
+      "noVideo": "このページには動画が見つかりません",
+      "muted": "動画はミュートされています。「適用」で音量を設定すると同時にミュートも解除されます"
+    }
+  },
+  "volume": {
+    "baseLabel": "基準音量",
+    "baseAriaLabel": "基準音量（0–100%）",
+    "applyAriaLabel": "基準音量を適用",
+    "applyTooltip": "基準音量を適用",
+    "fade": "フェードアウト",
+    "currentUnknown": "現在 —",
+    "currentMuted": "現在 ミュート",
+    "currentValue": "現在 {value}"
+  },
+  "deviation": {
+    "notYouTube": "YouTube のページに切り替えると動画音量を操作できます",
+    "noVideo": "このページに操作できる動画はありません",
+    "applyToWrite": "「適用」で基準音量を動画に書き込みます",
+    "currentIsZero": "現在の音量は 0 です",
+    "baseIsZero": "基準音量は 0 です",
+    "matchesBase": "現在の音量は基準と一致しています",
+    "higherThanBase": "現在の音量は基準より{value}%高いです",
+    "lowerThanBase": "現在の音量は基準より{value}%低いです"
+  },
+  "options": {
+    "heading": "詳細設定",
+    "formants": {
+      "label": "フォルマント保護",
+      "helper": "声や楽器の音色を保ち、移調によるフォルマントの移動で音色が変化しないようにします"
+    },
+    "accompaniment": {
+      "label": "伴奏モード",
+      "helper": "低域はリサンプリング、高域は Signalsmith"
+    }
+  }
+}

@@ -15,7 +15,10 @@
      nofind=1                        YouTube content script reports no <video>
      fail=<msg>                      REQUEST_CAPTURE fails with this message
      hold=<ms>                       REQUEST_CAPTURE takes this long
-     title=<text>                    active tab title */
+     title=<text>                    active tab title
+     lang=<tag>                      browser UI language, e.g. en-US / ja-JP /
+                                    zh-TW. Defaults to zh-TW. With accept=1 this
+                                    sets the preferred-languages list instead. */
 (function () {
   var p = new URLSearchParams(location.search);
   var mode = p.get("s") || "disconnected";
@@ -53,6 +56,9 @@
   };
 
   var store = {};
+  // 語系：預設 zh-TW，所以沒有 lang= 時預覽維持繁中，圖片才可重現。
+  var uiLang = p.get("lang") || "zh-TW";
+  var acceptLangs = p.get("accept") === "1" ? [uiLang] : [];
   if (p.get("mem") === "1") {
     // 頁面記憶：此頁已有稀疏記錄（page: 前綴 + pageKey）
     store["page:https://www.youtube.com/watch?v=dQw4w9WgXcQ"] = { pitch: pitch };
@@ -113,6 +119,18 @@
           default:
             respond({ ok: true });
         }
+      },
+    },
+    // Only the two locale-reading methods exist: the extension never calls
+    // getMessage, because its copy lives in its own catalog. `lang=` sets the
+    // UI language; `accept=1` sets the preferred-languages list instead, which
+    // is how the popup prefers a browsing language over a browser UI language.
+    i18n: {
+      getUILanguage: function () {
+        return uiLang;
+      },
+      getAcceptLanguages: function () {
+        return Promise.resolve(acceptLangs);
       },
     },
     tabs: {

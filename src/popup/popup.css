@@ -23,6 +23,17 @@
 	--snap-ease: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
+/* Per-locale typeface. Barlow Condensed carries the Latin and the numerals;
+   the CJK face carries the prose. Japanese gets its own face rather than
+   Noto Sans TC because the two disagree on kanji glyph forms — 直, 骨, 今 and
+   the kana designs all differ — and a Chinese face is the sort of thing a
+   Japanese reader notices without being able to name. Google Fonts splits both
+   CJK families into unicode-range subsets, so a locale only downloads the
+   subsets its copy actually touches. */
+:root:lang(ja) {
+	--font: "Barlow Condensed", "Noto Sans JP", "Noto Sans TC", ui-sans-serif, sans-serif;
+}
+
 * {
 	box-sizing: border-box;
 	margin: 0;

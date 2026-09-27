@@ -35,3 +35,30 @@ Real-time audio pitch transposition for Chrome tabs.
 **頁面音量**: 使用者看得到的那個音量：YouTube watch 頁播放器的音量，介面刻度 0–100（面板全程用百分比表達），由 manifest 注入的**兩支** content script 操作——ISOLATED 腳本（`content.js`）負責 popup 訊息與 DOM 讀取，MAIN world 腳本（`content-main.js`）持有 ramp 與所有寫入（頁面 JS 定義的 `setVolume` 在 ISOLATED world 讀作 undefined），兩者以 `postMessage` + ack 串接。寫入**優先走 player API**（`#movie_player.setVolume/unMute`），讓原生音量條與靜音圖示同步；API 不在時才退回直寫 `<video>.volume`。任何變更（套用／淡出）一律 500ms ramp、新指令重定目標（最後指令贏），且只在按鈕觸發時寫入——頁面載入與開 popup 都不覆寫。存的是**全域基準** `youtubeBaseVolume`（不進 per-URL 記憶）。_Avoid_: master gain、輸出總閘（是 DSP 的事）、總音量、直寫 `video.volume`／`video.muted`（音量條與靜音圖示會脫節）
 
 **基準音量**: 全域鍵 `youtubeBaseVolume`（0–100，預設 100，等於預設即刪鍵，類同 `snapToInteger`）。目前音量偏離基準時，面板以「比基準高/低 x%」提示（百分比相對基準、四捨五入，0 即「與基準一致」），按「套用」寫回基準；「淡出」只把音量漸降到 0，不動基準。popup 關閉不會自動改音量。_Avoid_: per-URL 音量、自動恢復、隱形改音量
+
+## 三語對照
+
+介面支援 `zh-Hant` / `en` / `ja`（ADR-0008）。譯者與譯審依此表；**`_Avoid_` 欄的告誡同樣適用於英日文**，例如「不要用 passthrough 說法蓋掉引擎沒起來這個事實」在英文裡一樣成立。每個概念的 key 見 `src/i18n/locales/zh-Hant.json`（key 的唯一真實來源）。
+
+| 概念 | zh-Hant | en | ja |
+| --- | --- | --- | --- |
+| 連線音訊 | 連線音訊 | Connect audio | 音声を接続 |
+| 擷取分頁 | 擷取分頁 | captured tab | キャプチャ中のタブ |
+| 活動分頁 | 活動分頁 | active tab | アクティブなタブ |
+| 頁面記憶 | 頁面記憶 | page memory | ページメモリ |
+| 設定分歧 | 設定分歧 | settings divergence | 設定の乖離 |
+| 自動跟隨 | 自動跟隨 | tab follow | 自動追従 |
+| 信號路徑 | 信號路徑 | signal path | 信号パス |
+| 移調引擎 | 移調引擎 | pitch engine | ピッチエンジン |
+| 伴奏模式 | 伴奏模式 | accompaniment mode | 伴奏モード |
+| 旁路 | 旁路 | bypass | バイパス |
+| 基準音量 | 基準音量 | base volume | 基準音量 |
+| 頁面音量 | 頁面音量 | page volume | ページ音量 |
+| 共振峰保護 | 共振峰保護 | formant protection | フォルマント保護 |
+| 半音吸附 | 半音吸附 | snap to semitone | 半音にスナップ |
+| 半音 | 半音 | semitone | 半音 |
+| 淡出 | 淡出 | fade out | フェードアウト |
+
+**英文的動詞選擇**：`已連線` 用 Connect，不用 Start 或 Capture——`CONTEXT.md` 對「連線」的 `_Avoid_` 同樣約束英文。中文「擷取」在英文是 capture（名詞 the captured tab、動詞 capture this tab），與「連線」是兩個不同的動作，不要互相替換。
+
+**單複數**：只有 `pitch.valueAriaText` 需要處理——英文 `1 semitone` / `N semitones`，中日文不變化。catalog 用 `{one, other}` 表示，缺 `one` 時回落 `other`。

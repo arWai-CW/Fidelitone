@@ -15,6 +15,7 @@ where everything was agreed to the first time is not a record of judgement.
 | [0005](0005-youtube-volume-and-loudness.md) | accepted, partly superseded | The YouTube volume panel, and the MAIN-world content script needed to reach a page-owned player API. |
 | [0006](0006-remove-loudness-analysis.md) | accepted | **Reverses 0005.** The dB loudness analysis shipped, got used, and proved meaningless to users — so it was removed down to the code and the tests, and this record says why. |
 | [0007](0007-single-pitch-engine.md) | accepted | **Removes the second engine.** Rubber Band was GPLv2+, was never used in the accompaniment path, and daily use had moved to the other one. Collapsing to one engine also collapsed the licence to a single permissive one — and forced the latency to actually be measured. |
+| [0008](0008-popup-i18n.md) | accepted | The popup in `zh-Hant` / `en` / `ja`, from a typed catalog where a missing key is a compile error. Language follows the user's browsing languages, then the browser UI, then `zh-Hant` — so the change is additive. Rules out `chrome.i18n`, and explains why a PNG byte comparison is not a layout regression gate. |
 
 Runtime results for these live in
 [`../runtime-verification.md`](../runtime-verification.md).

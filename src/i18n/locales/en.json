@@ -1,0 +1,146 @@
+{
+  "app": {
+    "title": "Fidelitone"
+  },
+  "tab": {
+    "none": "No active tab"
+  },
+  "rail": {
+    "ariaLabel": "Pitch scale"
+  },
+  "pitch": {
+    "ariaLabel": "Pitch adjustment",
+    "heading": "Pitch",
+    "unit": "st",
+    "valueAriaText": {
+      "one": "{value} semitone",
+      "other": "{value} semitones"
+    },
+    "down": "Lower pitch",
+    "up": "Raise pitch",
+    "reset": "Reset pitch to 0"
+  },
+  "snap": {
+    "label": "Snap to semitone",
+    "helper": "Adjust in whole semitones"
+  },
+  "connection": {
+    "ariaLabel": "Audio connection",
+    "status": {
+      "disconnected": "Not connected",
+      "connecting": "Connecting",
+      "connected": "Connected",
+      "lost": "Connection lost"
+    },
+    "headline": {
+      "disconnected": "Ready",
+      "connecting": "Opening the audio channel",
+      "connected": "Audio channel open",
+      "lost": "Audio channel interrupted"
+    },
+    "detail": {
+      "disconnected": "Connect to start processing this tab's audio",
+      "connecting": "Don't close this tab",
+      "connected": "This tab's audio is being processed",
+      "locked": "The audio hasn't moved to this tab yet — capture this tab first",
+      "otherTab": "Audio is coming from another tab",
+      "lost": "Reconnect to keep processing"
+    },
+    "button": {
+      "ariaLabel": {
+        "connect": "Connect audio",
+        "connecting": "Connecting",
+        "disconnect": "Disconnect",
+        "reconnect": "Reconnect"
+      },
+      "label": {
+        "connect": "Connect audio",
+        "connecting": "Connecting…",
+        "disconnect": "Disconnect",
+        "reconnect": "Reconnect"
+      },
+      "tooltip": {
+        "connect": "Connect audio",
+        "connecting": "Connecting...",
+        "disconnect": "Disconnect",
+        "reconnect": "Reconnect"
+      }
+    }
+  },
+  "bypass": {
+    "enable": "Enable bypass",
+    "enableTooltip": "Enable bypass (audio plays untouched)",
+    "disable": "Disable bypass",
+    "disableTooltip": "Disable bypass (engine processing)"
+  },
+  "memory": {
+    "pending": "Page memory · stored per page URL · applied on connect",
+    "saved": "Page memory · this page's settings applied",
+    "none": "Page memory · nothing stored yet · changes save per page",
+    "locked": "Page memory · different page · applied after re-capture"
+  },
+  "divergence": {
+    "action": "Capture this tab",
+    "otherTab": "The audio is currently in another tab",
+    "namedTab": "The audio is currently in “{title}”"
+  },
+  "error": {
+    "recovery": "Try again; if it keeps failing, reopen this tab",
+    "activeTabNotFound": "Can't find the current tab",
+    "startCaptureFailed": "Unable to start capture",
+    "stopCaptureFailed": "Unable to stop capture",
+    "serviceUnresponsive": "Extension audio service did not respond",
+    "serviceNoResponse": "Extension audio service returned no response",
+    "offscreenCommandFailed": "Offscreen command failed",
+    "playerUnresponsive": "YouTube controls did not respond",
+    "playerNotLoaded": "Video controls not loaded: reload the extension, then reload this tab",
+    "setVolumeFailed": "Couldn't set the video volume"
+  },
+  "route": {
+    "heading": "Signal path",
+    "standby": { "name": "Standby", "desc": "Not connected" },
+    "signalsmith": { "name": "Signalsmith", "desc": "Real-time transposition, tempo unchanged" },
+    "accompaniment": { "name": "Accompaniment", "desc": "Low band resampled + high band time-stretched" },
+    "bypass": { "name": "Bypass", "desc": "Captured audio played without processing" },
+    "passthrough": { "name": "Not processed", "desc": "Pitch engine never started; audio passes through" }
+  },
+  "youtube": {
+    "heading": "YouTube volume",
+    "hint": {
+      "notYouTube": "This panel only applies to YouTube (www.youtube.com)",
+      "noVideo": "No video found on this page",
+      "muted": "Video is muted; Apply also unmutes it"
+    }
+  },
+  "volume": {
+    "baseLabel": "Base volume",
+    "baseAriaLabel": "Base volume (0–100%)",
+    "applyAriaLabel": "Apply base volume",
+    "applyTooltip": "Apply base volume",
+    "fade": "Fade out",
+    "currentUnknown": "Now —",
+    "currentMuted": "Now muted",
+    "currentValue": "Now {value}"
+  },
+  "deviation": {
+    "notYouTube": "Switch to a YouTube page to control the video volume",
+    "noVideo": "No controllable video on this page",
+    "applyToWrite": "Press Apply to write the base volume to the video",
+    "currentIsZero": "The current volume is 0",
+    "baseIsZero": "The base volume is 0",
+    "matchesBase": "The current volume matches the base",
+    "higherThanBase": "The current volume is {value}% above the base",
+    "lowerThanBase": "The current volume is {value}% below the base"
+  },
+  "options": {
+    "heading": "Advanced",
+    "formants": {
+      "label": "Formant protection",
+      "helper": "Keeps vocal and instrument timbre, so transposing doesn't shift the formants and change the character"
+    },
+    "accompaniment": {
+      "label": "Accompaniment mode",
+      "helper": "Low band resampled, high band via Signalsmith"
+    }
+  }
+}
