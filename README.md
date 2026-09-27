@@ -1,33 +1,70 @@
+[English](README.md) · [繁體中文](README.zh-TW.md)
+
 # Fidelitone
 
-Real-time pitch transposition for Chrome tabs. Shift a video or song up or down
-in semitones without touching the tempo — for singing along, covers, cover
-versions, anything where the track is in the wrong key.
+![The Fidelitone pitch rail, connected to a YouTube tab at +3 semitones](docs/images/readme-hero.png)
 
-![The Fidelitone popup, connected to a YouTube tab at +3 semitones](docs/images/popup-connected.png)
+Real-time pitch transposition for Chrome tabs. Shift a video or a song up or
+down in semitones without touching the tempo — for singing along, covers, KTV,
+anything where the track is in the wrong key.
 
 It is MIT licensed, and the audio never leaves your browser. Most of the audio
-processing is not mine either — see
-[What is actually mine](#what-is-actually-mine), because that distinction is
-the interesting part.
+processing is not mine either — see [What is actually mine](#what-is-actually-mine),
+because that distinction is the interesting part.
 
 
 ## Features
 
-- Pitch shift −12 to +12 semitones, tempo untouched, **~100 ms** measured
-  latency (see [Honest limits](#honest-limits))
-- **Accompaniment mode** — a 175 Hz crossover so the low band is resampled
-  instead of stretched, which is what keeps bass notes solid
-- **Per-page memory** — every page URL keeps its own settings, so switching to
-  the next video applies them automatically
-- **Tab following** — move to another tab and the capture goes with you
+### Time-domain pitch shifting
+
+![The pitch rail at −7 semitones, signal path reading Signalsmith](docs/images/readme-transpose.png)
+
+−12 to +12 semitones, tempo untouched, **~100 ms** measured latency. A
+time-domain stretcher rather than a phase vocoder, which is what keeps a large
+transposition clean. The engine is borrowed; the honest split is in
+[What is actually mine](#what-is-actually-mine).
+
+### Accompaniment mode
+
+![Signal path reading 伴奏 / 低頻重取樣 ＋ 高頻時域拉伸, with the accompaniment switch on](docs/images/readme-accompaniment.png)
+
+A 175 Hz crossover: above it the signal is stretched as usual, below it
+resampling moves a bass note's harmonics and a kick drum together instead of
+thinning them out. That low band is the one piece of real signal processing in
+this project.
+
+### Per-page memory and tab following
+
+![Two tabs side by side: the one being processed, and the one the audio is actually in](docs/images/readme-memory.png)
+
+Every page URL keeps its own settings, so the next video picks them up
+automatically, and moving to another tab takes the capture with you. When the
+audio lands somewhere else, the interface names the tab instead of quietly doing
+nothing.
+
+### And also
+
 - Optional YouTube volume control with a 500 ms ramp against a baseline you keep
-- Reports the state honestly, including when the engine fails to start
+- Semitone snap, and formant preservation for voices
+- Reports its own state honestly, including when the engine fails to start
 - Zero services. No account, no analytics, no network calls at all beyond an
   optional web font
 
 
 ## Install
+
+Grab the zip from [Releases](../../releases), or build one yourself with
+`npm run package`.
+
+1. Download `fidelitone-<version>.zip` and unzip it.
+2. Open `chrome://extensions` and turn on **Developer mode** (top right).
+3. **Load unpacked**, and pick the folder you just unzipped — the one that has
+   `manifest.json` in it.
+
+Chrome keeps the copy in that folder, not the zip. To update, unzip the new
+version over the same folder and press the refresh arrow on the card.
+
+### From source
 
 ```bash
 git clone https://github.com/arWai-CW/fidelitone.git
@@ -36,16 +73,13 @@ npm install
 npm run build
 ```
 
-Then `chrome://extensions` → enable Developer mode → **Load unpacked** → select
-`dist/`.
+Then **Load unpacked** → `dist/`.
 
-For development: `npm test`, `npm run typecheck`, `npm run dev`. `npm run
-latency` measures the pitch engine in a browser, `npm run preview` serves the
-popup against a mocked `chrome.*` API.
-
-`npm run package` validates the build and writes a reproducible zip to
-`release/`. Pushing a `v*` tag builds the same zip and attaches it to a GitHub
-Release with its SHA-256.
+For development: `npm test`, `npm run typecheck`, `npm run dev`. `npm run latency`
+measures the pitch engine in a browser, `npm run preview` serves the popup
+against a mocked `chrome.*` API, `npm run shots` regenerates the figures on this
+page. Pushing a `v*` tag builds the same zip and attaches it to a GitHub Release
+with its SHA-256.
 
 
 ## What is actually mine
@@ -66,8 +100,6 @@ period-synchronous timeline corrections instead of wrapping into stale
 ring-buffer samples, and keeps read latency bounded at rates both below and
 above 1.0. It exists because the low band does not go through the STFT phase
 vocoder at all: a 60 Hz bass note has too few periods to survive one.
-
-![Accompaniment mode enabled](docs/images/popup-accompaniment.png)
 
 **The rest is plumbing, done carefully** rather than anything exotic — an atomic
 handover between tabs, a master output gate that fades around it, per-URL memory

@@ -15,6 +15,7 @@
     "preview": "node tools/popup-preview/serve.mjs",
     "package": "npm run build && node tools/package/package.mjs",
     "package:check": "node tools/package/package.mjs --check",
+    "shots": "node tools/readme-shots/shots.mjs",
     "version:manifest": "node tools/package/version.mjs"
   },
   "dependencies": {
