@@ -12,7 +12,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "latency": "node tools/latency-probe/serve.mjs",
-    "preview": "node tools/popup-preview/serve.mjs"
+    "preview": "node tools/popup-preview/serve.mjs",
+    "package": "npm run build && node tools/package/package.mjs",
+    "package:check": "node tools/package/package.mjs --check",
+    "version:manifest": "node tools/package/version.mjs"
   },
   "dependencies": {
     "signalsmith-stretch": "^1.3.2"

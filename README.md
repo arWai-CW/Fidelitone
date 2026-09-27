@@ -43,6 +43,10 @@ For development: `npm test`, `npm run typecheck`, `npm run dev`. `npm run
 latency` measures the pitch engine in a browser, `npm run preview` serves the
 popup against a mocked `chrome.*` API.
 
+`npm run package` validates the build and writes a reproducible zip to
+`release/`. Pushing a `v*` tag builds the same zip and attaches it to a GitHub
+Release with its SHA-256.
+
 
 ## What is actually mine
 

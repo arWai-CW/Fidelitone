@@ -1,0 +1,90 @@
+# Builds a loadable extension archive on a tag and attaches it to a GitHub
+# Release, with the SHA-256 of the bytes so a downloaded archive can be traced
+# back to a commit.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  # Cut a release from a branch whose manifest version already matches, without
+  # pushing the tag first. The input names the release; the build comes from
+  # whatever ref the workflow was dispatched on.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create, e.g. v1.0.0 (must match the manifest version)"
+        required: true
+        type: string
+
+permissions:
+  contents: write # create the GitHub Release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Verify the tag matches the manifest version
+        run: |
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          version="$(npm run version:manifest --silent)"
+          echo "tag=$tag manifest=$version"
+          if [ "${tag#v}" != "$version" ]; then
+            echo "::error::tag $tag does not match manifest version $version"
+            echo "Bump manifest.json and package.json together, then tag v$version."
+            exit 1
+          fi
+
+      - name: Test
+        run: npm test
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build and package
+        run: npm run package
+
+      - name: Record the package digest
+        id: digest
+        run: |
+          version="$(npm run version:manifest --silent)"
+          zip="release/fidelitone-${version}.zip"
+          sha="$(sha256sum "$zip" | cut -d' ' -f1)"
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+          echo "archive=$zip" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Fidelitone ${version}"
+            echo
+            echo "Unpacked extension, built from \`${GITHUB_SHA}\`."
+            echo
+            echo '```'
+            echo "$sha  $(basename "$zip")"
+            echo '```'
+            echo
+            echo "The archive is reproducible: the same source tree produces the same"
+            echo "bytes, so this digest identifies the code rather than the build machine."
+            echo
+            echo "To try it, unzip and load the directory with **Load unpacked** at"
+            echo "\`chrome://extensions\`. See the README for what it does."
+          } > release-notes.md
+          cat release-notes.md
+
+      - name: Attach the package to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          # Named explicitly: on a tag push the default is already right, but on
+          # workflow_dispatch the default would be the branch name, and a release
+          # tagged `main` is worse than no release.
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: Fidelitone ${{ github.event.inputs.tag || github.ref_name }}
+          body_path: release-notes.md
+          files: ${{ steps.digest.outputs.archive }}
+          fail_on_unmatched_files: true

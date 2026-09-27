@@ -52,6 +52,11 @@ jobs:
             test -f "dist/processors/$f.js" || { echo "::error::missing dist/processors/$f.js"; exit 1; }
           done
 
+      # A missing file in dist/ does not fail the build, it fails in a tab.
+      # This is where that gets caught, on every push.
+      - name: Package
+        run: npm run package:check
+
       - name: Upload build
         uses: actions/upload-artifact@v4
         with:
