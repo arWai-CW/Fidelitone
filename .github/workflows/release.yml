@@ -69,8 +69,11 @@ jobs:
             echo "$sha  $(basename "$zip")"
             echo '```'
             echo
-            echo "The archive is reproducible: the same source tree produces the same"
-            echo "bytes, so this digest identifies the code rather than the build machine."
+            echo "The archive's *contents* are reproducible from the source tree."
+            echo "Its compressed bytes are not: deflate output depends on the zlib"
+            echo "build, so the same inputs give a different digest on a different"
+            echo "Node build. Use this digest to confirm that a download is the file"
+            echo "that was published — not to compare against a local rebuild."
             echo
             echo "To try it, unzip and load the directory with **Load unpacked** at"
             echo "\`chrome://extensions\`. See the README for what it does."
