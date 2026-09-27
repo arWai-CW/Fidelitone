@@ -17,10 +17,12 @@
 //     crop rectangle and zoom factor are declared below, so a UI change moves
 //     the figure instead of silently desynchronising it.
 //
-// The figures are duplicated per language because the copy in them differs, but
-// the popup inside them does not: the extension's UI is zh-Hant throughout, so
-// an English figure still shows a Chinese interface. That is the product, not a
-// translation bug, and pretending otherwise would mean not using the real UI.
+// The figures are duplicated per language because both the copy in them and the
+// interface inside the popup differ. The popup is localized, so each figure
+// pins it to that figure's own language (see POPUP_LANG below) — an English
+// figure showing a Chinese interface would be a picture of a language the
+// reader cannot read. Pinning it also makes the figures reproducible: the
+// interface in the picture must not depend on whoever regenerated it.
 //
 // The grain is lifted out of the built popup CSS, so the frame's texture is
 // literally the same bytes the extension ships. If the texture changes, the
@@ -36,6 +38,23 @@ const root = resolve(here, "..", "..");
 const dist = join(root, "dist");
 const preview = join(root, "tools", "popup-preview", "preview");
 const outRoot = join(root, "docs", "images");
+
+// The popup now renders in the browser's language, so a figure has to pin it —
+// otherwise the interface in the picture depends on whoever regenerated it.
+// Each README gets the popup in its own language: an English figure showing a
+// Chinese interface is a picture of a language the reader cannot read.
+//
+// The crop rectangles below are in popup pixels. English and Chinese agree on
+// every section boundary (measured: identical y for header, rail, connection
+// strip, memory strip, pitch, signal path, volume, and options panels), so one
+// set of crops serves both. A translation that changed a section's height would
+// invalidate them and crop mid-panel — re-measure before trusting a figure.
+const POPUP_LANG = {
+  en: process.env.POPUP_LANG_EN || "en-US",
+  "zh-Hant": process.env.POPUP_LANG_ZH || "zh-TW",
+};
+const popupSrc = (locale, query) =>
+  `/popup.html?${query}&lang=${encodeURIComponent(POPUP_LANG[locale])}`;
 
 const CHROME_CANDIDATES = [
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -140,11 +159,11 @@ const FIGURES = [
     name: "hero",
     width: 1280,
     height: 620,
-    render: () => `
+    render: (locale) => `
       <div class="stack">
         <h1 class="wordmark"><i class="tick"></i>Fidelitone</h1>
         <div class="zoom" style="${zoom(0, 46, 400, 139, 2.2)}">
-          <iframe src="/popup.html?s=connected&yt=1&pitch=3&mem=1" title=""></iframe>
+          <iframe src="${popupSrc(locale, 's=connected&yt=1&pitch=3&mem=1')}" title=""></iframe>
         </div>
         <p class="tagline"></p>
       </div>`,
@@ -153,12 +172,12 @@ const FIGURES = [
     name: "transpose",
     width: 1280,
     height: 800,
-    render: () => `
+    render: (locale) => `
       <div class="cols">
         ${copy()}
         <div class="stack">
           <div class="zoom" style="${zoom(0, 46, 400, 386, 1.36)}">
-            <iframe src="/popup.html?s=connected&yt=1&pitch=-7&mem=1" title=""></iframe>
+            <iframe src="${popupSrc(locale, 's=connected&yt=1&pitch=-7&mem=1')}" title=""></iframe>
           </div>
         </div>
       </div>`,
@@ -167,15 +186,15 @@ const FIGURES = [
     name: "accompaniment",
     width: 1280,
     height: 800,
-    render: () => `
+    render: (locale) => `
       <div class="cols">
         ${copy()}
         <div class="stack">
           <div class="zoom" style="${zoom(0, 427, 400, 102, 1.36)}">
-            <iframe src="/popup.html?s=connected&yt=1&accom=1&pitch=-4&mem=1&formant=1" title=""></iframe>
+            <iframe src="${popupSrc(locale, 's=connected&yt=1&accom=1&pitch=-4&mem=1&formant=1')}" title=""></iframe>
           </div>
           <div class="zoom" style="${zoom(0, 699, 400, 199, 1.36)}">
-            <iframe src="/popup.html?s=connected&yt=1&accom=1&pitch=-4&mem=1&formant=1" title=""></iframe>
+            <iframe src="${popupSrc(locale, 's=connected&yt=1&accom=1&pitch=-4&mem=1&formant=1')}" title=""></iframe>
           </div>
         </div>
       </div>`,
@@ -184,7 +203,7 @@ const FIGURES = [
     name: "memory",
     width: 1280,
     height: 800,
-    render: () => `
+    render: (locale) => `
       <div class="rows">
         <div class="split">
           <div class="copy tight">
@@ -199,13 +218,13 @@ const FIGURES = [
         <div class="stack pair">
           <figure class="pane">
             <div class="zoom" style="${zoom(0, 46, 400, 327, 0.98)}">
-              <iframe src="/popup.html?s=connected&yt=1&pitch=2&mem=1" title=""></iframe>
+              <iframe src="${popupSrc(locale, 's=connected&yt=1&pitch=2&mem=1')}" title=""></iframe>
             </div>
             <figcaption></figcaption>
           </figure>
           <figure class="pane">
             <div class="zoom" style="${zoom(0, 46, 400, 332, 0.98)}">
-              <iframe src="/popup.html?s=connected&yt=1&div=1&pitch=2&mem=1" title=""></iframe>
+              <iframe src="${popupSrc(locale, 's=connected&yt=1&div=1&pitch=2&mem=1')}" title=""></iframe>
             </div>
             <figcaption></figcaption>
           </figure>
@@ -429,8 +448,8 @@ function page({ width, height, body, grain }) {
 // own text, and anything left empty is a bug rather than a blank to fill in
 // later, so it fails the run.
 
-function fill(fig, t) {
-  let html = fig.render();
+function fill(fig, t, locale) {
+  let html = fig.render(locale);
   const sub = (from, to) => {
     if (!html.includes(from)) throw new Error(`${fig.name}: nothing matches ${from}`);
     html = html.replace(from, to);
@@ -530,7 +549,7 @@ for (const fig of figures) {
 
     const slug = locale === "en" ? fig.name : `${fig.name}.${locale}`;
     const frame = join(preview, `frame-${slug}.html`);
-    writeFileSync(frame, page({ ...fig, body: fill(fig, TEXT[locale][fig.name]), grain }));
+    writeFileSync(frame, page({ ...fig, body: fill(fig, TEXT[locale][fig.name], locale), grain }));
 
     const shot = join(preview, `frame-${slug}.png`);
     rmSync(shot, { force: true });

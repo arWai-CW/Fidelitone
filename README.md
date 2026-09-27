@@ -2,22 +2,53 @@
 
 # Fidelitone
 
-![The Fidelitone pitch rail, connected to a YouTube tab at +3 semitones](docs/images/readme-hero.png)
+<a href="docs/images/readme-hero.png">
+  <img src="docs/images/readme-hero.png" alt="Fidelitone's pitch rail, connected, with the folded tape flag marking the current transposition" />
+</a>
 
 Real-time pitch transposition for Chrome tabs. Shift a video or a song up or
 down in semitones without touching the tempo — for singing along, covers, KTV,
 anything where the track is in the wrong key.
 
 It is MIT licensed, and the audio never leaves your browser. Most of the audio
-processing is not mine either — see [What is actually mine](#what-is-actually-mine),
-because that distinction is the interesting part.
+processing is not mine either — see
+[What is actually mine](#what-is-actually-mine), because that distinction is the
+interesting part.
 
+<table>
+  <tr>
+    <td><b>License</b></td>
+    <td>MIT. The one bundled dependency, Signalsmith Stretch, is MIT as well.</td>
+  </tr>
+  <tr>
+    <td><b>Platform</b></td>
+    <td>Chrome MV3 — loaded unpacked, or unzipped from a Release.</td>
+  </tr>
+  <tr>
+    <td><b>Latency</b></td>
+    <td><b>~100 ms</b>, measured by <code>npm run latency</code> rather than estimated.</td>
+  </tr>
+  <tr>
+    <td><b>Interface</b></td>
+    <td>English · 繁體中文 · 日本語, following the browser's language.</td>
+  </tr>
+  <tr>
+    <td><b>Audio</b></td>
+    <td>Stays on the device. No server, no account, no analytics.</td>
+  </tr>
+  <tr>
+    <td><b>Permissions</b></td>
+    <td><code>tabCapture</code> · <code>offscreen</code> · <code>storage</code> — each justified in <a href="store/README.md">store/README.md</a>.</td>
+  </tr>
+</table>
 
 ## Features
 
 ### Time-domain pitch shifting
 
-![The pitch rail at −7 semitones, signal path reading Signalsmith](docs/images/readme-transpose.png)
+<a href="docs/images/readme-transpose.png">
+  <img src="docs/images/readme-transpose.png" alt="The pitch panel reading −7.00 semitones, connected, with this page's settings already applied" />
+</a>
 
 −12 to +12 semitones, tempo untouched, **~100 ms** measured latency. A
 time-domain stretcher rather than a phase vocoder, which is what keeps a large
@@ -26,7 +57,9 @@ transposition clean. The engine is borrowed; the honest split is in
 
 ### Accompaniment mode
 
-![Signal path reading 伴奏 / 低頻重取樣 ＋ 高頻時域拉伸, with the accompaniment switch on](docs/images/readme-accompaniment.png)
+<a href="docs/images/readme-accompaniment.png">
+  <img src="docs/images/readme-accompaniment.png" alt="Signal path reading ACCOMPANIMENT / Low band resampled + high band time-stretched, with the formant protection and accompaniment switches on" />
+</a>
 
 A 175 Hz crossover: above it the signal is stretched as usual, below it
 resampling moves a bass note's harmonics and a kick drum together instead of
@@ -35,7 +68,9 @@ this project.
 
 ### Per-page memory and tab following
 
-![Two tabs side by side: the one being processed, and the one the audio is actually in](docs/images/readme-memory.png)
+<a href="docs/images/readme-memory.png">
+  <img src="docs/images/readme-memory.png" alt="Two popups side by side: audio being processed in this tab, and the same audio living in another tab" />
+</a>
 
 Every page URL keeps its own settings, so the next video picks them up
 automatically, and moving to another tab takes the capture with you. When the
@@ -50,14 +85,13 @@ nothing.
 - Zero services. No account, no analytics, no network calls at all beyond an
   optional web font
 
-
 ## Install
 
 Grab the zip from [Releases](../../releases), or build one yourself with
 `npm run package`.
 
 1. Download `fidelitone-<version>.zip` and unzip it.
-2. Open `chrome://extensions` and turn on **Developer mode** (top right).
+2. Open <kbd>chrome://extensions</kbd> and turn on **Developer mode** (top right).
 3. **Load unpacked**, and pick the folder you just unzipped — the one that has
    `manifest.json` in it.
 
@@ -75,12 +109,27 @@ npm run build
 
 Then **Load unpacked** → `dist/`.
 
-For development: `npm test`, `npm run typecheck`, `npm run dev`. `npm run latency`
-measures the pitch engine in a browser, `npm run preview` serves the popup
-against a mocked `chrome.*` API, `npm run shots` regenerates the figures on this
-page. Pushing a `v*` tag builds the same zip and attaches it to a GitHub Release
-with its SHA-256.
+Pushing a `v*` tag builds the same zip and attaches it to a GitHub Release with
+its SHA-256.
 
+<details>
+<summary><b>Development commands</b></summary>
+
+| Command | What it does |
+| --- | --- |
+| `npm test` | The unit and characterization tests |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run build` | Produces `dist/` |
+| `npm run dev` | The above, rebuilding on change |
+| `npm run preview` | Serves the popup against a mocked `chrome.*` API, so every state is reachable without a capture |
+| `npm run shots` | Regenerates the figures on this page, in both languages |
+| `npm run latency` | Measures the pitch engine in a real browser |
+| `npm run package` | Validates `dist/` and writes the release zip |
+
+`npm run preview` is worth knowing about: `?s=connected&yt=1&accom=1&pitch=-4`
+renders any popup state, and `&lang=ja-JP` renders it in Japanese.
+
+</details>
 
 ## What is actually mine
 
@@ -112,7 +161,6 @@ derived from the engine's 100 ms latency, and the two constants live in differen
 files with nothing enforcing the relationship. Nobody would have found that if
 the latency had not been measured. [ADR-0007](docs/adr/0007-single-pitch-engine.md)
 
-
 ## Honest limits
 
 Chrome imposes these. Fidelitone states them rather than pretending otherwise.
@@ -135,20 +183,20 @@ Chrome imposes these. Fidelitone states them rather than pretending otherwise.
   Chrome does not document tabCapture's input buffering, so a true end-to-end
   figure needs acoustic measurement this repo does not attempt.
 - **If the engine fails to start, your audio passes through unprocessed.** The
-  signal-path row says `未處理` rather than leaving a slider that appears to
-  work. That state was reached deliberately in testing by removing the worklet
-  file.
-
+  signal-path row says <code>Not processed</code> — <code>未處理</code> in the
+  Chinese interface — rather than leaving a slider that appears to work. That
+  state was reached deliberately in testing by removing the worklet file.
 
 ## More
 
-- [`docs/adr/`](docs/adr/) — seven architecture decision records, two of which
+- [`docs/adr/`](docs/adr/) — eight architecture decision records, two of which
   are reversals of features that shipped and were then deleted
 - [`docs/runtime-verification.md`](docs/runtime-verification.md) — what was
   actually run on real Chrome, and the numbers
+- [`docs/i18n-plan.md`](docs/i18n-plan.md) — how the three interface languages
+  are kept from drifting apart
 - [`CONTEXT.md`](CONTEXT.md) · [`PRODUCT.md`](PRODUCT.md) · [`DESIGN.md`](DESIGN.md) —
   vocabulary, product constraints, design system
-
 
 ## License
 

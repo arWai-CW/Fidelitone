@@ -2,7 +2,9 @@
 
 # Fidelitone
 
-![Fidelitone 的音高軌，連線到 YouTube 分頁，+3 半音](docs/images/zh-Hant/readme-hero.zh-Hant.png)
+<a href="docs/images/zh-Hant/readme-hero.zh-Hant.png">
+  <img src="docs/images/zh-Hant/readme-hero.zh-Hant.png" alt="Fidelitone 的音高軌，狀態顯示「已連線」，折角膠帶旗標記目前移調量" />
+</a>
 
 Chrome 分頁的即時移調。把正在播放的影片或音樂升 key 或降 key，節奏完全不變 ——
 練唱、cover、KTV 跟唱，曲目 key 不對的時候用。
@@ -10,12 +12,40 @@ Chrome 分頁的即時移調。把正在播放的影片或音樂升 key 或降 k
 MIT 授權，音訊全程留在你的瀏覽器。音訊處理的大部分也不是我寫的 ——
 見[哪些才是我做的](#哪些才是我做的)，因為那個差別才是重點。
 
+<table>
+  <tr>
+    <td><b>授權</b></td>
+    <td>MIT。唯一內嵌的相依套件 Signalsmith Stretch 也是 MIT。</td>
+  </tr>
+  <tr>
+    <td><b>平台</b></td>
+    <td>Chrome MV3 —— 以未封裝項目載入，或從 Release 解壓縮。</td>
+  </tr>
+  <tr>
+    <td><b>延遲</b></td>
+    <td><b>約 100ms</b>，由 <code>npm run latency</code> 量測而得，不是估算。</td>
+  </tr>
+  <tr>
+    <td><b>介面</b></td>
+    <td>English · 繁體中文 · 日本語，跟著瀏覽器語言走。</td>
+  </tr>
+  <tr>
+    <td><b>音訊</b></td>
+    <td>留在裝置上。沒有伺服器、沒有帳號、沒有分析工具。</td>
+  </tr>
+  <tr>
+    <td><b>權限</b></td>
+    <td><code>tabCapture</code> · <code>offscreen</code> · <code>storage</code> —— 每項的理由見 <a href="store/README.md">store/README.md</a>。</td>
+  </tr>
+</table>
 
 ## 功能
 
 ### 時域移調
 
-![音高軌在 −7 半音，信號路徑顯示 Signalsmith](docs/images/zh-Hant/readme-transpose.zh-Hant.png)
+<a href="docs/images/zh-Hant/readme-transpose.zh-Hant.png">
+  <img src="docs/images/zh-Hant/readme-transpose.zh-Hant.png" alt="音高面板顯示 −7.00 半音，已連線，頁面記憶顯示已套用此頁的設定" />
+</a>
 
 −12 到 +12 半音，節奏完全不動，實測延遲約 **100ms**。時域拉伸而不是相位聲碼器，
 這就是大範圍移調能保持乾淨的原因。引擎是借來的，誠實的分工見
@@ -23,14 +53,18 @@ MIT 授權，音訊全程留在你的瀏覽器。音訊處理的大部分也不�
 
 ### 伴奏模式
 
-![信號路徑顯示「伴奏／低頻重取樣 ＋ 高頻時域拉伸」，伴奏模式開關打開](docs/images/zh-Hant/readme-accompaniment.zh-Hant.png)
+<a href="docs/images/zh-Hant/readme-accompaniment.zh-Hant.png">
+  <img src="docs/images/zh-Hant/readme-accompaniment.zh-Hant.png" alt="信號路徑顯示「伴奏／低頻重取樣 ＋ 高頻時域拉伸」，共振峰保護與伴奏模式開關都打開" />
+</a>
 
 175 Hz 分頻。以上照常拉伸，以下改用重取樣，讓 bass 音的泛音和 kick 一起移動，
 而不是被拉薄。這條低頻路徑是這個專案唯一一段真正的訊號處理。
 
 ### 頁面記憶與跟隨分頁
 
-![兩個分頁並排：正在處理的那個，和音訊實際所在的那個](docs/images/zh-Hant/readme-memory.zh-Hant.png)
+<a href="docs/images/zh-Hant/readme-memory.zh-Hant.png">
+  <img src="docs/images/zh-Hant/readme-memory.zh-Hant.png" alt="兩個 popup 並排：音訊正在目前分頁處理，以及同一份音訊跑到另一個分頁" />
+</a>
 
 每個頁面 URL 記住自己的設定，換到下一支影片就自動套用；移到另一個分頁，擷取
 跟著走。音訊跑到別頁時，介面會直接說出來，而不是默默地沒反應。
@@ -43,13 +77,12 @@ MIT 授權，音訊全程留在你的瀏覽器。音訊處理的大部分也不�
 - 沒有任何服務。沒有帳號、沒有分析工具、除了一個選用的網路字體以外
   沒有任何對外連線
 
-
 ## 安裝
 
 從 [Releases](../../releases) 抓 zip，或自己用 `npm run package` 產生一份。
 
 1. 下載 `fidelitone-<version>.zip` 並解壓縮。
-2. 打開 `chrome://extensions`，開右上角的**開發人員模式**。
+2. 打開 <kbd>chrome://extensions</kbd>，開右上角的**開發人員模式**。
 3. 按**載入未封裝項目**，選擇剛才解壓縮的那個資料夾 —— 裡面有 `manifest.json`
    的那個。
 
@@ -67,11 +100,26 @@ npm run build
 
 然後**載入未封裝項目** → `dist/`。
 
-開發用：`npm test`、`npm run typecheck`、`npm run dev`。`npm run latency` 在瀏覽器
-裡量 pitch 引擎，`npm run preview` 用假的 `chrome.*` API 跑 popup，`npm run shots`
-重出這一頁的圖。推上 `v*` tag 會用同一套流程打包，並把 zip 附在 GitHub Release
-上，附上 SHA-256。
+推上 `v*` tag 會用同一套流程打包，並把 zip 附在 GitHub Release 上，附上 SHA-256。
 
+<details>
+<summary><b>開發指令</b></summary>
+
+| 指令 | 作用 |
+| --- | --- |
+| `npm test` | 單元測試與行為凍結測試 |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run build` | 產生 `dist/` |
+| `npm run dev` | 同上，改動即重建 |
+| `npm run preview` | 用假的 `chrome.*` API 跑 popup，不擷取音訊就能到達任何狀態 |
+| `npm run shots` | 重出這一頁的圖，兩種語言 |
+| `npm run latency` | 在真的瀏覽器裡量 pitch 引擎 |
+| `npm run package` | 驗證 `dist/` 並寫出 release zip |
+
+`npm run preview` 值得記一下：`?s=connected&yt=1&accom=1&pitch=-4` 可以渲染出任何
+popup 狀態，`&lang=ja-JP` 則是把它渲染成日文。
+
+</details>
 
 ## 哪些才是我做的
 
@@ -98,7 +146,6 @@ MAIN-world content script。這不是一份重點清單；端到端能跑起來�
 出來的，而這兩個常數住在不同的檔案裡，沒有任何機制在管它們之間的關係。
 如果沒有量延遲，沒有人會發現。 [ADR-0007](docs/adr/0007-single-pitch-engine.md)
 
-
 ## 誠實的限制
 
 這些是 Chrome 規定的。Fidelitone 把它們講出來，而不是假裝沒有。
@@ -116,20 +163,19 @@ MAIN-world content script。這不是一份重點清單；端到端能跑起來�
   代價是品質和 CPU。`AudioContext.baseLatency` 和 `outputLatency` 要另外加上
   平台的緩衝；Chrome 沒有公開 tabCapture 的輸入緩衝，所以真正的端到端數字需要
   聲學量測，這個 repo 不做。
-- **引擎起不來時，音訊會未經處理直接通過。** 信號路徑那一列會寫 `未處理`，
-  而不是留一個看起來能拖、其實沒反應的滑桿。這個狀態是在測試時刻意造出來的
-  —— 把 worklet 檔案刪掉。
-
+- **引擎起不來時，音訊會未經處理直接通過。** 信號路徑那一列會寫 `未處理`
+  （英文介面是 `Not processed`），而不是留一個看起來能拖、其實沒反應的滑桿。
+  這個狀態是在測試時刻意造出來的 —— 把 worklet 檔案刪掉。
 
 ## 更多
 
-- [`docs/adr/`](docs/adr/) —— 七份架構決策記錄，其中兩份是把已經上線、然後又
+- [`docs/adr/`](docs/adr/) —— 八份架構決策記錄，其中兩份是把已經上線、然後又
   刪掉的功能翻案
 - [`docs/runtime-verification.md`](docs/runtime-verification.md) —— 在真的
   Chrome 上跑了什麼，以及那些數字
+- [`docs/i18n-plan.md`](docs/i18n-plan.md) —— 三種介面語言如何不致各自腐化
 - [`CONTEXT.md`](CONTEXT.md) · [`PRODUCT.md`](PRODUCT.md) · [`DESIGN.md`](DESIGN.md) ——
   詞彙、產品限制、設計系統
-
 
 ## 授權
 
