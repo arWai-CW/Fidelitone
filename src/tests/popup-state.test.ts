@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyCaptureState,
   clampPitch,
+  connectedDetail,
   connectionState,
   createPopupState,
   formatSemitones,
@@ -54,16 +55,42 @@ describe("popup state", () => {
       }),
     );
 
+    expect(connectionState(state)).toBe("connected");
     expect(state.bypass).toBe(true);
     expect(state.route).toBe("bypass");
   });
 
-  // ADR-0007: the route is the only thing that tells the user the audio is
-  // passing through unprocessed, so it must survive a snapshot that omits it.
   it("keeps the last known route when a snapshot omits it", () => {
     const withRoute = applyCaptureState(createPopupState(), capture({ route: "passthrough" }));
     expect(withRoute.route).toBe("passthrough");
     expect(applyCaptureState(withRoute, capture({})).route).toBe("passthrough");
+  });
+
+  it("keeps a lost capture distinct from a deliberate disconnect", () => {
+    const lost = applyCaptureState(
+      createPopupState(),
+      capture({ connected: false, captureLost: true, route: "signalsmith" }),
+    );
+    expect(connectionState(lost)).toBe("lost");
+    expect(lost.route).toBeNull();
+    expect(isProcessingLocked(lost)).toBe(true);
+    expect(connectionState(setConnected(lost, false))).toBe("disconnected");
+    expect(connectionState(setConnected(lost, true))).toBe("connected");
+  });
+
+  it("reports original audio and locks editing only when pitch processing failed", () => {
+    const bypass = applyCaptureState(createPopupState(), capture({ bypass: true, route: "bypass" }));
+    expect(connectedDetail(bypass)).toBe("bypass");
+    expect(isProcessingLocked(bypass)).toBe(false);
+
+    const failed = applyCaptureState(bypass, capture({ route: "passthrough" }));
+    expect(connectionState(failed)).toBe("connected");
+    expect(connectedDetail(failed)).toBe("passthrough");
+    expect(isProcessingLocked(failed)).toBe(true);
+
+    const recovered = applyCaptureState(failed, capture({ route: "signalsmith" }));
+    expect(connectedDetail(recovered)).toBe("connected");
+    expect(isProcessingLocked(recovered)).toBe(false);
   });
 
   it("keeps pitch math at the UI contract", () => {
@@ -97,11 +124,13 @@ describe("popup state", () => {
     const samePageOtherTab = applyCaptureState(capturing, capture({ tabId: 7, page: videoA }));
     expect(isSettingsLocked(samePageOtherTab)).toBe(false);
     expect(isProcessingLocked(samePageOtherTab)).toBe(false);
+    expect(connectedDetail(samePageOtherTab)).toBe("otherTab");
 
     // Same site, another video: another record, so the controls follow the capture.
     const otherVideo = applyCaptureState(capturing, capture({ tabId: 1, page: videoB }));
     expect(isSettingsLocked(otherVideo)).toBe(true);
     expect(isProcessingLocked(otherVideo)).toBe(true);
+    expect(connectedDetail(otherVideo)).toBe("locked");
 
     const otherOrigin = applyCaptureState(
       capturing,

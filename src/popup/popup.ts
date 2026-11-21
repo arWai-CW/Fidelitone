@@ -6,6 +6,7 @@
 import {
   applyCaptureState,
   clampPitch,
+  connectedDetail,
   connectionState,
   createPopupState,
   formatSemitones,
@@ -163,9 +164,10 @@ function updatePitchDisplay(value: number) {
 
 function updateStepButtons() {
   const value = getPitch();
-  pitchDown.disabled = value <= PITCH_MIN;
-  pitchUp.disabled = value >= PITCH_MAX;
-  pitchReset.disabled = value === 0;
+  const locked = isProcessingLocked(popupState);
+  pitchDown.disabled = locked || value <= PITCH_MIN;
+  pitchUp.disabled = locked || value >= PITCH_MAX;
+  pitchReset.disabled = locked || value === 0;
 }
 
 function refreshControlAvailability() {
@@ -176,9 +178,7 @@ function refreshControlAvailability() {
   });
 
   pitchSlider.disabled = locked;
-  pitchDown.disabled = locked || getPitch() <= PITCH_MIN;
-  pitchUp.disabled = locked || getPitch() >= PITCH_MAX;
-  pitchReset.disabled = locked || getPitch() === 0;
+  updateStepButtons();
   snapCheckbox.disabled = locked;
   formantCheckbox.disabled = locked;
   accompanimentCheckbox.disabled = locked;
@@ -187,16 +187,6 @@ function refreshControlAvailability() {
   renderRoute();
   updateBypassButtonState();
   renderYoutubePanel();
-}
-
-/** The detail line's meaning depends on why the controls are locked, not on state alone. */
-type ConnectionDetail = "disconnected" | "locked" | "otherTab" | "connected";
-
-function connectionDetailFor(): ConnectionDetail {
-  if (popupState.connected && isSettingsLocked(popupState)) return "locked";
-  if (popupState.connected && showDivergenceBanner(popupState)) return "otherTab";
-  if (popupState.connected) return "connected";
-  return "disconnected";
 }
 
 /** One place that writes the connect button's three copies, so they cannot drift. */
@@ -218,9 +208,11 @@ function renderConnectionState() {
     connectionDetail.textContent = t("connection.detail.connecting");
     setConnectButtonCopy("connecting");
   } else if (state === "connected") {
+    const detail = connectedDetail(popupState);
+    const headline = detail === "bypass" || detail === "passthrough" ? detail : "connected";
     connectionText.textContent = t("connection.status.connected");
-    connectionHeadline.textContent = t("connection.headline.connected");
-    connectionDetail.textContent = t(`connection.detail.${connectionDetailFor()}`);
+    connectionHeadline.textContent = t(`connection.headline.${headline}`);
+    connectionDetail.textContent = t(`connection.detail.${detail}`);
     setConnectButtonCopy("disconnect");
   } else if (state === "lost") {
     connectionText.textContent = t("connection.status.lost");
@@ -576,8 +568,6 @@ function applyLiveState(state: CaptureState) {
   formantCheckbox.checked = state.preserveFormants === true;
   accompanimentCheckbox.checked = state.accompanimentMode === true;
 
-  renderRoute();
-  updateBypassButtonState();
   renderConnectionState();
   void refreshCapturedTabTitle();
 }
@@ -630,7 +620,7 @@ async function refreshRouteState(): Promise<void> {
   const state = await getCaptureState();
   if (!state) return;
   popupState = applyCaptureState(popupState, state);
-  renderRoute();
+  renderConnectionState();
 }
 
 /**
@@ -701,7 +691,6 @@ async function disconnectCapture(): Promise<boolean> {
       showError(response?.error ?? t("error.stopCaptureFailed"));
       return false;
     }
-    popupState = { ...popupState, captureLost: false };
     setConnected(false);
     loadedCapturedTabId = null;
     capturedTabTitle = null;
@@ -962,7 +951,7 @@ accompanimentCheckbox.addEventListener("change", async () => {
 });
 
 connectBtn.addEventListener("click", async () => {
-  if (popupState.connected) {
+  if (connectionState(popupState) === "connected") {
     await disconnectCapture();
   } else {
     await connectCurrentTab();
@@ -1071,7 +1060,6 @@ async function initializePopup() {
   const liveState = await getCaptureState();
   if (liveState?.connected || liveState?.captureLost) {
     applyLiveState(liveState);
-    setConnected(liveState.connected === true);
     await seedPageSettings(liveState);
   } else {
     // ADR-0005 (amending ADR-0004): opening the popup no longer touches the

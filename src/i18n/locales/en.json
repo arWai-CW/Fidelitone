@@ -36,12 +36,16 @@
       "disconnected": "Ready",
       "connecting": "Opening the audio channel",
       "connected": "Audio channel open",
+      "bypass": "Playing original audio",
+      "passthrough": "Pitch shifting unavailable",
       "lost": "Audio channel interrupted"
     },
     "detail": {
       "disconnected": "Connect to start processing this tab's audio",
       "connecting": "Don't close this tab",
       "connected": "This tab's audio is being processed",
+      "bypass": "Turn off bypass to hear the pitch shift",
+      "passthrough": "Original audio is playing. Disconnect and reconnect to retry.",
       "locked": "The audio hasn't moved to this tab yet — capture this tab first",
       "otherTab": "Audio is coming from another tab",
       "lost": "Reconnect to keep processing"

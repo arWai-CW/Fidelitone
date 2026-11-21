@@ -33,12 +33,16 @@
       "disconnected": "等待開始",
       "connecting": "正在建立音訊通道",
       "connected": "音訊通道已建立",
+      "bypass": "正在播放原音",
+      "passthrough": "移調未啟動",
       "lost": "音訊通道已中斷"
     },
     "detail": {
       "disconnected": "按連線開始處理此分頁音訊",
       "connecting": "請不要關閉目前分頁",
       "connected": "目前分頁音訊正在處理",
+      "bypass": "關閉旁路即可聽到移調後的音訊",
+      "passthrough": "目前播放原音。請斷開後重新連線以重試。",
       "locked": "音訊尚未切到目前分頁，請先改擷取此分頁",
       "otherTab": "音訊來自另一個分頁",
       "lost": "重新連線後可繼續處理"
