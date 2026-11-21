@@ -34,26 +34,27 @@
     url: activePage,
   };
 
+  function routeFor(state) {
+    if (state.bypass) return "bypass";
+    if (state.accompanimentMode) return "accompaniment";
+    return p.get("dead") === "1" ? "passthrough" : "signalsmith";
+  }
+
   var capture = {
     ok: true,
     state: {
       ready: true,
-      // lost 走真實路徑：擷取遺失是連線中被推送的狀態（initializePopup 只在
-      // connected 或 captureLost 時套用，而 setConnected(false) 會清掉 lost）。
-      connected: mode === "connected" || mode === "lost",
+      connected: mode === "connected",
       captureLost: mode === "lost",
       pitch: pitch,
       bypass: p.get("bypass") === "1",
       preserveFormants: p.get("formant") === "1",
       accompanimentMode: p.get("accom") === "1",
-      // dead=1 模擬引擎未啟動：圖退回直通，介面誠實報「未處理」。
-      route: p.get("bypass") === "1"
-        ? "bypass"
-        : (p.get("accom") === "1" ? "accompaniment" : (p.get("dead") === "1" ? "passthrough" : "signalsmith")),
       tabId: diverge ? 7 : 1,
       page: diverge ? "https://www.youtube.com/watch?v=OTHERPAGE" : activePage,
     },
   };
+  capture.state.route = routeFor(capture.state);
 
   var store = {};
   // 語系：預設 zh-TW，所以沒有 lang= 時預覽維持繁中，圖片才可重現。
@@ -84,20 +85,17 @@
               respond({ ok: false, error: failMsg });
               break;
             }
-            if (hold) {
-              setTimeout(function () {
-                capture.state.connected = true;
-                capture.state.tabId = diverge ? 7 : 1;
-                capture.state.page = diverge ? "https://www.youtube.com/watch?v=OTHERPAGE" : activePage;
-                cb && cb({ ok: true });
-              }, hold);
-              break;
-            }
-            capture.state.connected = true;
-            respond({ ok: true });
+            setTimeout(function () {
+              capture.state.connected = true;
+              capture.state.captureLost = false;
+              capture.state.tabId = activeTab.id;
+              capture.state.page = activePage;
+              cb && cb({ ok: true });
+            }, hold || 25);
             break;
           case "RELEASE_CAPTURE":
             capture.state.connected = false;
+            capture.state.captureLost = false;
             respond({ ok: true });
             break;
           case "SET_PITCH":
@@ -106,6 +104,7 @@
             break;
           case "SET_BYPASS":
             capture.state.bypass = msg.value.active;
+            capture.state.route = routeFor(capture.state);
             respond({ ok: true });
             break;
           case "SET_FORMANTS":
@@ -114,6 +113,7 @@
             break;
           case "SET_ACCOMPANIMENT":
             capture.state.accompanimentMode = msg.value.enabled;
+            capture.state.route = routeFor(capture.state);
             respond({ ok: true });
             break;
           default:

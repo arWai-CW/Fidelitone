@@ -7,6 +7,7 @@ import { isCrossTabCapture, isSettingsMismatch } from "../lib/page-settings";
 export type CaptureState = AudioCaptureState;
 export type SignalRoute = AudioSignalRoute;
 export type ConnectionState = "disconnected" | "connecting" | "connected" | "lost";
+export type ConnectedDetail = "locked" | "otherTab" | "connected" | "bypass" | "passthrough";
 
 export interface PopupState {
   connected: boolean;
@@ -88,7 +89,11 @@ export function isSettingsLocked(state: PopupState): boolean {
 }
 
 export function isProcessingLocked(state: PopupState): boolean {
-  return !state.connected || state.connecting || state.captureLost || isSettingsLocked(state);
+  return (
+    connectionState(state) !== "connected" ||
+    isSettingsLocked(state) ||
+    state.route === "passthrough"
+  );
 }
 
 /**
@@ -104,12 +109,20 @@ export function showDivergenceBanner(state: PopupState): boolean {
   );
 }
 
+export function connectedDetail(state: PopupState): ConnectedDetail {
+  if (isSettingsLocked(state)) return "locked";
+  if (showDivergenceBanner(state)) return "otherTab";
+  if (state.route === "bypass" || state.route === "passthrough") return state.route;
+  return "connected";
+}
+
 export function applyCaptureState(current: PopupState, capture: CaptureState): PopupState {
   return {
     ...current,
+    connected: capture.connected,
     captureLost: capture.captureLost === true,
     bypass: capture.bypass === true,
-    route: capture.route ?? current.route,
+    route: capture.connected ? capture.route ?? current.route : null,
     capturedTabId: typeof capture.tabId === "number" ? capture.tabId : null,
     capturedPage: typeof capture.page === "string" ? capture.page : null,
   };
@@ -142,7 +155,8 @@ export function setConnected(current: PopupState, connected: boolean): PopupStat
   return {
     ...current,
     connected,
-    captureLost: connected ? current.captureLost : false,
+    captureLost: false,
+    route: connected ? current.route : null,
     capturedTabId: connected ? current.capturedTabId : null,
     capturedPage: connected ? current.capturedPage : null,
   };
